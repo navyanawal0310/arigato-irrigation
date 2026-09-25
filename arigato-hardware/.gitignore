@@ -5,4 +5,6 @@
 .vscode/ipch
 
 # Local hardware credentials - never commit
+include/secrets.h
+secrets.h
 arigato-hardware/include/secrets.h
