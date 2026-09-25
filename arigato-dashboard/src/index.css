@@ -1,5 +1,5 @@
 :root {
-  font-family: "DM Sans", Arial, sans-serif;
+  font-family: "Inter", system-ui, sans-serif;
 
   font-synthesis: none;
 
@@ -64,30 +64,26 @@ svg {
 
 ::selection {
   color: white;
-
-  background: #0f9d50;
+  background: #16a34a;
 }
-
 
 ::-webkit-scrollbar {
-  width: 9px;
+  width: 10px;
+  height: 10px;
 }
-
 
 ::-webkit-scrollbar-track {
-  background: #071d16;
+  background: transparent;
 }
-
 
 ::-webkit-scrollbar-thumb {
-  border: 2px solid #071d16;
-
+  border: 3px solid transparent;
   border-radius: 10px;
-
-  background: #2d6651;
+  background: #b9c8bf;
+  background-clip: padding-box;
 }
 
-
 ::-webkit-scrollbar-thumb:hover {
-  background: #0f9d50;
+  background: #16a34a;
+  background-clip: padding-box;
 }

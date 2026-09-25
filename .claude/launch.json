@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "krishi-setu-dashboard",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "arigato-dashboard", "run", "dev", "--", "--port", "5173"],
+      "port": 5173
+    }
+  ]
+}

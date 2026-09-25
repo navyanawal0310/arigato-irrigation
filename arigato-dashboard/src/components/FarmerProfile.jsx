@@ -1,118 +1,162 @@
-import React from "react";
-import { LOCATION_PRESETS } from "../services/weatherService";
-import { MapPin, Maximize2, Sprout, Droplets, Sliders, RefreshCw } from "lucide-react";
+import { useState } from "react";
+import { ArrowRight, MapPin } from "lucide-react";
+import { LOCATION_PRESETS, getPreset, nearestPreset } from "../services/weatherService";
+import { CONVENTIONAL_CROPS, LAND_UNITS, toAcres } from "../services/recommendationEngine";
+import { PageHeader } from "./ui";
+import FieldMap from "./FieldMap";
 
-export default function FarmerProfile({ farmerInput, onUpdateFarmerInput, onRefreshData, isRefreshing }) {
-  const handleChange = (field, value) => {
-    onUpdateFarmerInput({ ...farmerInput, [field]: value });
+const IRRIGATION_OPTIONS = [
+  { value: "available", label: "Available" },
+  { value: "partial", label: "Partial" },
+  { value: "none", label: "Not Available" },
+];
+
+const FARMING_TYPES = ["Open Field", "Polyhouse", "Shade Net", "Terrace / Kitchen Garden"];
+
+export default function FarmerProfile({ farmerInput, onSave }) {
+  const [draft, setDraft] = useState(farmerInput);
+  const [locating, setLocating] = useState(false);
+  const [locateError, setLocateError] = useState(null);
+  const set = (field, value) => {
+    setDraft((d) => ({ ...d, [field]: value }));
+  };
+
+  const acres = toAcres(draft.plotSize, draft.plotUnit);
+  const sideFt = Math.sqrt(acres * 43560);
+  const preset = draft.coords ? nearestPreset(draft.coords.lat, draft.coords.lon) : getPreset(draft.locationPreset);
+  const center = draft.coords ?? { lat: preset.fieldLat, lon: preset.fieldLon };
+  const areaLabel = `${Number(draft.plotSize).toLocaleString("en-IN")} ${LAND_UNITS[draft.plotUnit].label}`;
+
+  const locate = () => {
+    if (!navigator.geolocation) {
+      setLocateError("Location is not supported by this browser.");
+      return;
+    }
+    setLocating(true);
+    setLocateError(null);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        set("coords", { lat: pos.coords.latitude, lon: pos.coords.longitude });
+        setLocating(false);
+      },
+      (err) => {
+        setLocateError(err.code === 1 ? "Location permission was denied." : "Could not get your location.");
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
   };
 
   return (
-    <div className="farmer-profile-card">
-      <div className="profile-header">
-        <div className="profile-title">
-          <MapPin size={20} color="var(--green-bright)" />
-          <h3>Farmer & Field Information</h3>
-        </div>
-        <button
-          className="refresh-btn"
-          onClick={onRefreshData}
-          disabled={isRefreshing}
-        >
-          <RefreshCw size={14} className={isRefreshing ? "spin" : ""} />
-          {isRefreshing ? "Fetching Locality API..." : "Update Locality Data"}
-        </button>
-      </div>
+    <div className="page">
+      <PageHeader title="Farmer & Land Profile" subtitle="Enter your farm details to get personalized recommendations" />
 
-      <div className="profile-form-grid">
-        {/* Location Select */}
-        <div className="form-group">
-          <label>
-            <MapPin size={14} /> Location / Village / District
-          </label>
-          <select
-            value={farmerInput.locationPreset}
-            onChange={(e) => handleChange("locationPreset", e.target.value)}
-          >
-            {LOCATION_PRESETS.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name}, {p.state} ({p.soilType})
-              </option>
-            ))}
-          </select>
+      <div className="card profile-card">
+        <div className="profile-form">
+          <div className="field">
+            <label htmlFor="loc">Location</label>
+            <div className="input-icon">
+              <MapPin size={16} className="text-green" />
+              <select
+                id="loc"
+                value={draft.coords ? "gps" : draft.locationPreset}
+                onChange={(e) => {
+                  setDraft((d) => ({ ...d, locationPreset: e.target.value, coords: null }));
+                }}
+              >
+                {draft.coords && <option value="gps">My Field (near {preset.name})</option>}
+                {LOCATION_PRESETS.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}, {p.state}</option>
+                ))}
+              </select>
+            </div>
+            {locateError && <span className="field-error">{locateError}</span>}
+          </div>
+
+          <div className="field">
+            <label htmlFor="plot">Plot Size</label>
+            <div className="input-pair">
+              <input
+                id="plot"
+                type="number"
+                min="0"
+                step="any"
+                value={draft.plotSize}
+                onChange={(e) => set("plotSize", Math.max(0, parseFloat(e.target.value) || 0))}
+              />
+              <select value={draft.plotUnit} onChange={(e) => set("plotUnit", e.target.value)} aria-label="Unit">
+                {Object.entries(LAND_UNITS).map(([key, u]) => (
+                  <option key={key} value={key}>{u.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="field">
+            <label htmlFor="crop">Current / Main Crop</label>
+            <select id="crop" value={draft.primaryCrop} onChange={(e) => set("primaryCrop", e.target.value)}>
+              {Object.entries(CONVENTIONAL_CROPS).map(([key, c]) => (
+                <option key={key} value={key}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="field">
+            <label>Irrigation Availability</label>
+            <div className="radio-row" role="radiogroup">
+              {IRRIGATION_OPTIONS.map((o) => (
+                <label key={o.value} className={`radio ${draft.irrigation === o.value ? "checked" : ""}`}>
+                  <input
+                    type="radio"
+                    name="irrigation"
+                    value={o.value}
+                    checked={draft.irrigation === o.value}
+                    onChange={() => set("irrigation", o.value)}
+                  />
+                  <span className="radio-dot" />
+                  {o.label}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div className="field">
+            <label htmlFor="ftype">Farming Type</label>
+            <select id="ftype" value={draft.farmingType} onChange={(e) => set("farmingType", e.target.value)}>
+              {FARMING_TYPES.map((t) => (
+                <option key={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+
+          <button className="btn btn-primary btn-block" onClick={() => onSave(draft)} disabled={!acres}>
+            Save & Continue <ArrowRight size={16} />
+          </button>
         </div>
 
-        {/* Total Plot Size */}
-        <div className="form-group">
-          <label>
-            <Maximize2 size={14} /> Total Land Size (Acres)
-          </label>
-          <input
-            type="number"
-            step="0.25"
-            min="0.25"
-            max="100"
-            value={farmerInput.totalLandAcres}
-            onChange={(e) => handleChange("totalLandAcres", parseFloat(e.target.value) || 1)}
+        <div className="profile-map">
+          <FieldMap
+            lat={center.lat}
+            lon={center.lon}
+            acres={acres}
+            label={areaLabel}
+            onLocate={locate}
+            locating={locating}
           />
-        </div>
-
-        {/* Primary Conventional Crop */}
-        <div className="form-group">
-          <label>
-            <Sprout size={14} /> Main Conventional Crop
-          </label>
-          <select
-            value={farmerInput.primaryCrop}
-            onChange={(e) => handleChange("primaryCrop", e.target.value)}
-          >
-            <option value="Paddy / Rice">Paddy (Rice)</option>
-            <option value="Wheat">Wheat</option>
-            <option value="Sugarcane">Sugarcane</option>
-            <option value="Cotton">Cotton</option>
-            <option value="Maize">Maize</option>
-          </select>
-        </div>
-
-        {/* Irrigation Availability */}
-        <div className="form-group">
-          <label>
-            <Droplets size={14} /> Irrigation Facility
-          </label>
-          <select
-            value={farmerInput.irrigationType}
-            onChange={(e) => handleChange("irrigationType", e.target.value)}
-          >
-            <option value="Drip Irrigation">Drip Irrigation (Micro-drip)</option>
-            <option value="Sprinkler Irrigation">Sprinkler Irrigation</option>
-            <option value="Borewell / Tube Well">Borewell / Tube Well</option>
-            <option value="Canal / Flood">Canal / Flood</option>
-            <option value="Rainfed">Rainfed (Seasonal)</option>
-          </select>
-        </div>
-      </div>
-
-      {/* High-Value Allocation Slider */}
-      <div className="allocation-strip">
-        <div className="allocation-header">
-          <label>
-            <Sliders size={14} /> Allocated Portion for Minor High-Value Crop:
-          </label>
-          <strong>
-            {farmerInput.highValueLandAcres} Acre ({Math.round((farmerInput.highValueLandAcres / farmerInput.totalLandAcres) * 100)}% of total land)
-          </strong>
-        </div>
-        <input
-          type="range"
-          min="0.1"
-          max={Math.min(farmerInput.totalLandAcres, 5)}
-          step="0.1"
-          value={farmerInput.highValueLandAcres}
-          onChange={(e) => handleChange("highValueLandAcres", parseFloat(e.target.value) || 0.1)}
-        />
-        <div className="allocation-note">
-          <span>Conventional Crop ({farmerInput.primaryCrop}): {(farmerInput.totalLandAcres - farmerInput.highValueLandAcres).toFixed(2)} Acres</span>
-          <span>High-Value Diversified Crop: {farmerInput.highValueLandAcres} Acre</span>
+          <div className="map-stats">
+            <div>
+              <strong>{acres < 10 ? acres.toFixed(3) : acres.toFixed(1)}</strong>
+              <span>Acres</span>
+            </div>
+            <div>
+              <strong>{Math.round(sideFt).toLocaleString("en-IN")} × {Math.round(sideFt).toLocaleString("en-IN")} ft</strong>
+              <span>Approx. Dimensions</span>
+            </div>
+            <div>
+              <strong>{draft.farmingType}</strong>
+              <span>Farm Type</span>
+            </div>
+          </div>
         </div>
       </div>
     </div>

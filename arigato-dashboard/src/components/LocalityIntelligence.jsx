@@ -1,87 +1,105 @@
-import React from "react";
-import { Thermometer, Droplets, CloudRain, Mountain, Sun, Wind, Globe, Check } from "lucide-react";
+import { Droplets, Layers, Leaf, RefreshCw, Sprout, Thermometer, Wind } from "lucide-react";
+import { PageHeader, WeatherIcon } from "./ui";
 
-export default function LocalityIntelligence({ localityData }) {
-  if (!localityData) return null;
+export default function LocalityIntelligence({ localityData, onRefresh, isRefreshing }) {
+  if (!localityData) {
+    return (
+      <div className="page">
+        <PageHeader title="Locality Intelligence" subtitle="Fetching environmental data for your location…" />
+      </div>
+    );
+  }
+
+  const live = localityData.source === "OPEN_METEO_API";
+  const weather = [
+    { icon: <Thermometer size={30} className="wx wx-sun" />, value: `${localityData.temp}°C`, label: "Temperature", sub: `Feels like ${localityData.feelsLike}°C` },
+    { icon: <Droplets size={30} className="wx wx-rain" />, value: `${localityData.humidity}%`, label: "Humidity", sub: "Relative humidity" },
+    { icon: <WeatherIcon code={localityData.rainfall > 0 ? 61 : 3} size={30} />, value: `${localityData.rainfall} mm`, label: "Rainfall (Today)", sub: localityData.rainfall > 0 ? "Rain expected" : "No rain expected" },
+    { icon: <Wind size={30} className="wx wx-rain" />, value: `${localityData.windSpeed} km/h`, label: "Wind Speed", sub: localityData.windDirection },
+    { icon: <WeatherIcon code={localityData.weatherCode} size={30} />, value: localityData.condition, label: "Weather", sub: localityData.tempRange },
+  ];
 
   return (
-    <div className="locality-section">
-      <div className="section-title-strip">
-        <div>
-          <h3>Locality Intelligence</h3>
-          <p>Real-time agro-climatic & environmental parameters retrieved from public API data</p>
+    <div className="page">
+      <PageHeader
+        title="Locality Intelligence"
+        subtitle={`Real-time environmental and soil data for ${localityData.locationName}`}
+        right={
+          <div className="header-actions">
+            <div className={`source-badge ${live ? "" : "offline"}`}>
+              <strong>{live ? "API Data" : "Offline Data"}</strong>
+              <span>{live ? "From Open-Meteo & ICAR sources" : "Regional averages (API unreachable)"}</span>
+            </div>
+            <button className="icon-btn" onClick={onRefresh} disabled={isRefreshing} aria-label="Refresh weather">
+              <RefreshCw size={16} className={isRefreshing ? "spin" : ""} />
+            </button>
+          </div>
+        }
+      />
+
+      <div className="weather-grid">
+        {weather.map((w) => (
+          <div key={w.label} className="card weather-tile">
+            {w.icon}
+            <strong>{w.value}</strong>
+            <span>{w.label}</span>
+            <small>{w.sub}</small>
+          </div>
+        ))}
+      </div>
+
+      <div className="soil-grid">
+        <div className="card">
+          <h3 className="card-title"><span className="title-dot" />Soil Information</h3>
+          <div className="soil-facts">
+            <div className="soil-fact">
+              <span className="soil-swatch"><Layers size={18} /></span>
+              <div><strong>{localityData.soilType.replace(" Soil", "")}</strong><span>Soil Type</span></div>
+            </div>
+            <div className="soil-fact">
+              <div><strong>{localityData.soilPh}</strong><span>pH Range</span></div>
+            </div>
+            <div className="soil-fact">
+              <div><strong>{localityData.organicMatter}</strong><span>Organic Matter</span></div>
+            </div>
+            <div className="soil-fact">
+              <div><strong>{localityData.drainage}</strong><span>Drainage</span></div>
+            </div>
+          </div>
         </div>
-        <div className="api-badge-pill">
-          <Globe size={14} />
-          <span>LOCALITY API DERIVED DATA</span>
+
+        <div className="card">
+          <h3 className="card-title"><span className="title-dot" />Agro-Climatic Zone</h3>
+          <div className="soil-fact">
+            <span className="soil-swatch green"><Leaf size={18} /></span>
+            <div><strong>{localityData.zone}</strong><span>Zone Type</span></div>
+          </div>
         </div>
       </div>
 
-      <div className="locality-cards-grid">
-        {/* Temperature Card */}
-        <div className="intel-card">
-          <div className="intel-icon temp-icon">
-            <Thermometer size={22} />
-          </div>
-          <div className="intel-content">
-            <span className="intel-label">Ambient Temperature</span>
-            <strong className="intel-value">{localityData.temp}°C</strong>
-            <small className="intel-sub">Expected Range: {localityData.tempRange}</small>
-          </div>
-          <span className="source-tag">Open-Meteo API</span>
+      <div className="card">
+        <h3 className="card-title">7-Day Weather Forecast</h3>
+        <div className="forecast-row">
+          {localityData.forecast.map((d) => (
+            <div key={d.date} className={`forecast-day ${d.label === "Today" ? "today" : ""}`}>
+              <span className="forecast-label">{d.label}</span>
+              <WeatherIcon code={d.code} size={26} />
+              <strong>{d.tMax}°C</strong>
+              <span className="forecast-rain">
+                <Droplets size={11} /> {d.rain} mm
+              </span>
+            </div>
+          ))}
         </div>
+      </div>
 
-        {/* Humidity Card */}
-        <div className="intel-card">
-          <div className="intel-icon humidity-icon">
-            <Droplets size={22} />
-          </div>
-          <div className="intel-content">
-            <span className="intel-label">Relative Humidity</span>
-            <strong className="intel-value">{localityData.humidity}%</strong>
-            <small className="intel-sub">Atmospheric Moisture</small>
-          </div>
-          <span className="source-tag">Live Sat Feed</span>
-        </div>
-
-        {/* Rainfall Card */}
-        <div className="intel-card">
-          <div className="intel-icon rain-icon">
-            <CloudRain size={22} />
-          </div>
-          <div className="intel-content">
-            <span className="intel-label">Rainfall Forecast</span>
-            <strong className="intel-value">{localityData.rainfall} mm</strong>
-            <small className="intel-sub">Condition: {localityData.condition}</small>
-          </div>
-          <span className="source-tag">Weather API</span>
-        </div>
-
-        {/* Soil Profile Card */}
-        <div className="intel-card">
-          <div className="intel-icon soil-icon">
-            <Mountain size={22} />
-          </div>
-          <div className="intel-content">
-            <span className="intel-label">Locality Soil Type</span>
-            <strong className="intel-value" style={{ fontSize: "16px" }}>{localityData.soilType}</strong>
-            <small className="intel-sub">pH Range: {localityData.soilPh}</small>
-          </div>
-          <span className="source-tag">Agro-Soil Survey</span>
-        </div>
-
-        {/* Weather Forecast Summary */}
-        <div className="intel-card">
-          <div className="intel-icon weather-icon">
-            <Sun size={22} />
-          </div>
-          <div className="intel-content">
-            <span className="intel-label">Agro-Climatic Zone</span>
-            <strong className="intel-value" style={{ fontSize: "14px", lineHeight: "1.3" }}>{localityData.zone}</strong>
-            <small className="intel-sub">Wind: {localityData.windSpeed} km/h</small>
-          </div>
-          <span className="source-tag">ICAR Regional Map</span>
-        </div>
+      <div className="card tip-card">
+        <Sprout size={20} className="text-green" />
+        <p>
+          {localityData.forecast.slice(0, 3).some((d) => d.rain >= 5)
+            ? "Rain is expected in the next 3 days — hold irrigation and check field drainage for raised beds."
+            : "Dry spell ahead for the next 3 days — plan drip irrigation early morning to reduce evaporation."}
+        </p>
       </div>
     </div>
   );

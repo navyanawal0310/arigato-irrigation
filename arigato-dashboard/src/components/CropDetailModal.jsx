@@ -1,20 +1,27 @@
-import React, { useState } from "react";
-import { X, Sparkles, Droplets, Sun, Mountain, ShieldCheck, Sprout, IndianRupee, Clock, CheckCircle2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { X, Sparkles, Droplets, Sun, Mountain, ShieldCheck, Sprout, IndianRupee, CheckCircle2 } from "lucide-react";
+import { formatArea, inr } from "../utils/format";
 
 export default function CropDetailModal({ crop, onClose }) {
   const [activeTab, setActiveTab] = useState("why");
 
+  useEffect(() => {
+    const onKey = (e) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   if (!crop) return null;
 
   return (
-    <div className="modal-backdrop" onClick={onClose}>
+    <div className="modal-backdrop" onClick={onClose} role="dialog" aria-modal="true">
       <div className="modal-card" onClick={(e) => e.stopPropagation()}>
         {/* Modal Header */}
         <div className="modal-header">
           <div className="modal-title-wrap">
             <span className="modal-emoji">{crop.icon}</span>
             <div>
-              <h2>{crop.name} Guidance</h2>
+              <h2>{crop.name}</h2>
               <span className="modal-subtitle">{crop.scientificName} • {crop.kannadaName}</span>
             </div>
           </div>
@@ -77,7 +84,7 @@ export default function CropDetailModal({ crop, onClose }) {
               <ul className="guidance-list">
                 {crop.whySuitable.map((reason, i) => (
                   <li key={i}>
-                    <CheckCircle2 size={16} color="#16b760" />
+                    <CheckCircle2 size={16} className="text-green" />
                     <span>{reason}</span>
                   </li>
                 ))}
@@ -85,7 +92,7 @@ export default function CropDetailModal({ crop, onClose }) {
 
               <div className="spec-grid">
                 <div className="spec-item">
-                  <Sun size={18} color="#f59e0b" />
+                  <Sun size={18} className="wx-sun" />
                   <div>
                     <strong>Climate Fit:</strong>
                     <p>{crop.climateCompatibility}</p>
@@ -93,7 +100,7 @@ export default function CropDetailModal({ crop, onClose }) {
                 </div>
 
                 <div className="spec-item">
-                  <Mountain size={18} color="#10b981" />
+                  <Mountain size={18} className="text-green" />
                   <div>
                     <strong>Soil Requirement:</strong>
                     <p>{crop.soilCompatibility}</p>
@@ -107,7 +114,7 @@ export default function CropDetailModal({ crop, onClose }) {
             <div className="tab-pane">
               <h3>Water & Irrigation Schedule</h3>
               <div className="info-box blue-box">
-                <Droplets size={20} color="#0ea5e9" />
+                <Droplets size={20} className="wx-rain" />
                 <div>
                   <strong>Recommended Irrigation:</strong>
                   <p>{crop.waterGuidance}</p>
@@ -115,16 +122,16 @@ export default function CropDetailModal({ crop, onClose }) {
                 </div>
               </div>
 
-              <h3 style={{ marginTop: "20px" }}>Fertilizer & NPK Dosage</h3>
+              <h3 className="spaced">Fertilizer & NPK Dosage</h3>
               <div className="info-box green-box">
-                <Sprout size={20} color="#16b760" />
+                <Sprout size={20} className="text-green" />
                 <div>
                   <strong>NPK & Organic Amendments:</strong>
                   <p>{crop.fertilizerSchedule}</p>
                 </div>
               </div>
 
-              <h3 style={{ marginTop: "20px" }}>Growing Timeline & Stage</h3>
+              <h3 className="spaced">Growing Timeline & Stage</h3>
               <p>Total Duration: <strong>{crop.growingPeriodDays}</strong> | Harvest Window: <strong>{crop.harvestWindow}</strong></p>
             </div>
           )}
@@ -133,27 +140,27 @@ export default function CropDetailModal({ crop, onClose }) {
             <div className="tab-pane">
               <h3>Pest & Fungal Disease Prevention</h3>
               <div className="info-box yellow-box">
-                <ShieldCheck size={20} color="#f59e0b" />
+                <ShieldCheck size={20} className="wx-sun" />
                 <div>
                   <strong>Common Risks & Defense:</strong>
                   <p>{crop.pestDefense}</p>
                 </div>
               </div>
 
-              <h3 style={{ marginTop: "20px" }}>Harvesting & Post-Harvest Handling</h3>
+              <h3 className="spaced">Harvesting & Post-Harvest Handling</h3>
               <p>{crop.harvestingInfo}</p>
             </div>
           )}
 
           {activeTab === "economics" && (
             <div className="tab-pane">
-              <h3>Financial Estimates ({crop.allocatedAcres} Acre Allocation)</h3>
+              <h3>Financial Estimates ({formatArea(crop.allocatedAcres)} allocation)</h3>
               <div className="economics-table-wrap">
                 <table className="modal-econ-table">
                   <tbody>
                     <tr>
                       <td>Allocated Land Size:</td>
-                      <td><strong>{crop.allocatedAcres} Acre</strong></td>
+                      <td><strong>{formatArea(crop.allocatedAcres)}</strong></td>
                     </tr>
                     <tr>
                       <td>Expected Yield per Acre:</td>
@@ -165,15 +172,15 @@ export default function CropDetailModal({ crop, onClose }) {
                     </tr>
                     <tr>
                       <td>Estimated Cultivation Cost:</td>
-                      <td><strong style={{ color: "#ef4444" }}>₹{crop.estCultivationCost.toLocaleString("en-IN")}</strong></td>
+                      <td><strong className="text-red">{inr(crop.estCultivationCost)}</strong></td>
                     </tr>
                     <tr>
                       <td>Estimated Gross Revenue:</td>
-                      <td><strong style={{ color: "#0ea5e9" }}>₹{crop.estGrossRevenue.toLocaleString("en-IN")}</strong></td>
+                      <td><strong>{inr(crop.estGrossRevenue)}</strong></td>
                     </tr>
                     <tr className="final-net-row">
                       <td>Estimated Net Return:</td>
-                      <td><strong style={{ color: "#16b760", fontSize: "18px" }}>₹{crop.estNetReturn.toLocaleString("en-IN")}</strong></td>
+                      <td><strong className="text-green">{inr(crop.estNetReturn)}</strong></td>
                     </tr>
                   </tbody>
                 </table>
@@ -188,7 +195,7 @@ export default function CropDetailModal({ crop, onClose }) {
 
         {/* Modal Footer */}
         <div className="modal-footer">
-          <button className="primary-button" onClick={onClose}>
+          <button className="btn btn-primary" onClick={onClose}>
             Close Guidance
           </button>
         </div>

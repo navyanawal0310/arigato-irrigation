@@ -1,144 +1,133 @@
-import React from "react";
-import { TrendingUp, Sparkles, ArrowRight, IndianRupee, AlertCircle, HelpCircle, CheckCircle } from "lucide-react";
+import { Bar, BarChart, CartesianGrid, Cell, LabelList, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { BarChart3, CheckCircle2, Info } from "lucide-react";
+import { PageHeader } from "./ui";
+import { formatArea, inr } from "../utils/format";
 
-export default function AdditionalRevenue({ economics, topCrop, farmerInput, onUpdateFarmerInput }) {
-  if (!economics || !topCrop) return null;
+const compact = (n) => {
+  if (n >= 100000) return `₹${+(n / 100000).toFixed(1)}L`;
+  if (n >= 1000) return `₹${+(n / 1000).toFixed(1)}K`;
+  return `₹${n}`;
+};
 
-  const {
-    totalLand,
-    hvLand,
-    convLandOnly,
-    primaryCrop,
-    conventionalOnlyIncome,
-    diversifiedIncome,
-    additionalRevenue,
-    percentageBoost,
-  } = economics;
+function ChartTooltip({ active, payload }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="chart-tooltip">
+      <strong>{d.full}</strong>
+      <span>{inr(d.value)} per season</span>
+      {d.gain !== undefined && <span className="text-green">+{inr(d.gain)} vs current</span>}
+    </div>
+  );
+}
+
+export default function AdditionalRevenue({ engine, farmerInput, onUpdateFarmerInput, localityName }) {
+  const { economics, recommendations } = engine;
+  const topThree = recommendations.slice(0, 3);
+  const best = topThree[0];
+  const potential = Math.max(best.diversifiedIncome, economics.conventionalOnlyIncome);
+  const gain = potential - economics.conventionalOnlyIncome;
+  const boost = Math.round((gain / (economics.conventionalOnlyIncome || 1)) * 100);
+  const level = boost >= 100 ? "High" : boost >= 30 ? "Medium" : "Low";
+
+  const data = [
+    { name: "Current Crop", full: `${economics.primaryCrop} only`, value: economics.conventionalOnlyIncome, baseline: true },
+    ...[...topThree]
+      .sort((a, b) => a.diversifiedIncome - b.diversifiedIncome)
+      .map((c) => ({ name: c.shortName, full: `${economics.primaryCrop} + ${c.shortName}`, value: c.diversifiedIncome, gain: c.additionalRevenue })),
+  ];
+
+  const insights = [
+    `Minor crops can provide ${Math.max(1, Math.round(best.netReturnPerAcre / (economics.conventionalOnlyIncome / economics.totalLand)))}× higher returns per acre than ${economics.primaryCrop}.`,
+    `${best.shortName} is ${best.suitabilityScore}% suitable for ${localityName} climate and soil.`,
+    `Only ${farmerInput.minorSharePercent}% of your land (${formatArea(economics.hvLand)}) is needed — the rest stays with your main crop.`,
+    `Complements your existing ${economics.primaryCrop} season without replacing it.`,
+  ];
 
   return (
-    <div className="revenue-highlight-section">
-      <div className="revenue-banner-header">
-        <div className="revenue-header-title">
-          <div className="sparkle-circle">
-            <Sparkles size={24} color="#ffffff" />
-          </div>
+    <div className="page">
+      <PageHeader title="Revenue Opportunity" subtitle="Compare potential returns between conventional and recommended crops" />
+
+      <div className="kpi-grid">
+        <div className="card kpi">
+          <strong>{inr(economics.conventionalOnlyIncome)}</strong>
+          <span>Current Crop Income</span>
+          <small>(per season)</small>
+        </div>
+        <div className="card kpi">
+          <strong>{inr(potential)}</strong>
+          <span>Potential Income</span>
+          <small>(with {best.shortName.toLowerCase()})</small>
+        </div>
+        <div className="card kpi">
+          <strong>{inr(gain)}</strong>
+          <span>Additional Opportunity</span>
+          <small className="text-green">(+{boost}%)</small>
+        </div>
+        <div className="card kpi kpi-level">
+          <BarChart3 size={30} />
           <div>
-            <span className="revenue-kicker">KRISHI SETU DIVERSIFICATION IMPACT</span>
-            <h2>Potential Additional Revenue Opportunity</h2>
-          </div>
-        </div>
-
-        <div className="revenue-percentage-pill">
-          <span>+{percentageBoost}%</span>
-          <small>Net Income Boost</small>
-        </div>
-      </div>
-
-      {/* Main Income Comparison Visual */}
-      <div className="income-comparison-cards">
-        {/* Card 1: 100% Conventional Crop Strategy */}
-        <div className="income-card conventional-card">
-          <div className="card-badge">CONVENTIONAL PLAN (100% LAND)</div>
-          <h3>{primaryCrop} Only</h3>
-          <p className="strategy-desc">
-            Cultivating {primaryCrop} on entire {totalLand} Acres
-          </p>
-
-          <div className="income-amount-box">
-            <span>Est. Net Income</span>
-            <strong className="amount-value">₹{conventionalOnlyIncome.toLocaleString("en-IN")}</strong>
-          </div>
-
-          <div className="income-breakdown-list">
-            <div className="breakdown-item">
-              <span>Primary Land ({totalLand} Acres)</span>
-              <span>₹{conventionalOnlyIncome.toLocaleString("en-IN")}</span>
-            </div>
-            <div className="breakdown-item">
-              <span>High-Value Minor Crop</span>
-              <span>₹0 (None)</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Transition Arrow */}
-        <div className="strategy-arrow">
-          <ArrowRight size={28} />
-          <span>DIVERSIFY</span>
-        </div>
-
-        {/* Card 2: KRISHI SETU Diversification Strategy */}
-        <div className="income-card diversified-card">
-          <div className="card-badge highlight-badge">KRISHI SETU SMART STRATEGY</div>
-          <h3>
-            {primaryCrop} + {topCrop.name} {topCrop.icon}
-          </h3>
-          <p className="strategy-desc">
-            {convLandOnly.toFixed(2)} Acres {primaryCrop} + {hvLand} Acre High-Value {topCrop.name}
-          </p>
-
-          <div className="income-amount-box highlight-box">
-            <span>Est. Net Income</span>
-            <strong className="amount-value green">
-              ₹{diversifiedIncome.toLocaleString("en-IN")}
-            </strong>
-          </div>
-
-          <div className="income-breakdown-list">
-            <div className="breakdown-item">
-              <span>{primaryCrop} ({convLandOnly.toFixed(2)} Acres)</span>
-              <span>₹{Math.round(convLandOnly * (conventionalOnlyIncome / totalLand)).toLocaleString("en-IN")}</span>
-            </div>
-            <div className="breakdown-item">
-              <span>{topCrop.name} ({hvLand} Acre)</span>
-              <span className="green">+₹{topCrop.estNetReturn.toLocaleString("en-IN")}</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Card 3: Additional Revenue Difference Callout */}
-        <div className="income-card difference-card">
-          <div className="card-badge surge-badge">NET GAIN SURGE</div>
-          <h3>Additional Revenue</h3>
-          <p className="strategy-desc">Extra earnings generated by diversifying {hvLand} Acre</p>
-
-          <div className="surge-amount-box">
-            <span className="surge-label">+ ADDITIONAL INCOME</span>
-            <strong className="surge-value">
-              +₹{additionalRevenue.toLocaleString("en-IN")}
-            </strong>
-            <span className="surge-subtext">From suitable portion of land</span>
+            <strong>{level}</strong>
+            <span>Revenue Potential</span>
           </div>
         </div>
       </div>
 
-      {/* Interactive Land Allocation Slider */}
-      <div className="interactive-slider-box">
-        <div className="slider-label-row">
-          <span>
-            <TrendingUp size={16} /> Adjust High-Value Crop Land Portion:
-          </span>
-          <strong>{hvLand} Acre Allocated</strong>
+      <div className="revenue-grid">
+        <div className="card">
+          <h3 className="card-title">Estimated Revenue Comparison</h3>
+          <p className="card-sub">(for your {formatArea(economics.totalLand)} plot, per season)</p>
+          <div className="chart-box">
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={data} margin={{ top: 28, right: 8, left: 0, bottom: 0 }} barCategoryGap="28%">
+                <CartesianGrid vertical={false} stroke="var(--grid)" />
+                <XAxis dataKey="name" tickLine={false} axisLine={{ stroke: "var(--border)" }} tick={{ fill: "var(--muted)", fontSize: 12 }} />
+                <YAxis tickFormatter={compact} tickLine={false} axisLine={false} tick={{ fill: "var(--muted)", fontSize: 12 }} width={52} />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: "var(--hover)" }} />
+                <Bar dataKey="value" radius={[4, 4, 0, 0]} maxBarSize={64}>
+                  {data.map((d) => (
+                    <Cell key={d.name} fill={d.baseline ? "var(--bar-baseline)" : "var(--bar-green)"} />
+                  ))}
+                  <LabelList dataKey="value" position="top" formatter={inr} style={{ fill: "var(--text)", fontSize: 12, fontWeight: 600 }} />
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="card insights-card">
+          <h3 className="card-title">Key Insights</h3>
+          <ul className="insight-list">
+            {insights.map((text) => (
+              <li key={text}>
+                <CheckCircle2 size={18} />
+                <span>{text}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+
+      <div className="card allocation-card">
+        <div className="allocation-head">
+          <label htmlFor="share">Land portion for minor crop</label>
+          <strong>
+            {farmerInput.minorSharePercent}% · {formatArea(economics.hvLand)}
+          </strong>
         </div>
         <input
+          id="share"
           type="range"
-          min="0.1"
-          max={Math.min(totalLand, 3.0)}
-          step="0.1"
-          value={farmerInput.highValueLandAcres}
-          onChange={(e) =>
-            onUpdateFarmerInput({
-              ...farmerInput,
-              highValueLandAcres: parseFloat(e.target.value) || 0.1,
-            })
-          }
+          min="5"
+          max="60"
+          step="5"
+          value={farmerInput.minorSharePercent}
+          onChange={(e) => onUpdateFarmerInput({ ...farmerInput, minorSharePercent: Number(e.target.value) })}
+          style={{ "--fill": `${((farmerInput.minorSharePercent - 5) / 55) * 100}%` }}
         />
-        <div className="slider-footer-note">
-          <HelpCircle size={14} />
-          <span>
-            Notice: Values are estimates based on average APMC mandi rates and historical yields. Actual revenue depends on market fluctuations, weather conditions, and farm management.
-          </span>
-        </div>
+        <p className="muted small">
+          <Info size={13} /> Estimates use average APMC mandi rates and historical yields. Actual income varies with market prices, weather and farm management.
+        </p>
       </div>
     </div>
   );

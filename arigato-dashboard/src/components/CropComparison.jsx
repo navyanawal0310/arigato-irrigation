@@ -1,147 +1,112 @@
-import React from "react";
-import { Layers, CheckCircle2, ArrowRight } from "lucide-react";
+import { useState } from "react";
+import { Layers, Plus, X } from "lucide-react";
+import { PageHeader } from "./ui";
+import { formatArea, inr } from "../utils/format";
+
+const ROWS = [
+  { label: "Suitability Score", render: (c) => `${c.suitabilityScore}%`, strong: true },
+  { label: "Growing Duration", render: (c) => c.duration },
+  { label: "Water Requirement", render: (c) => c.water },
+  { label: "Estimated Yield", sub: "plot", render: (c) => `${c.estYieldKg.toLocaleString("en-IN")} kg` },
+  { label: "Market Price (avg)", sub: "per kg", render: (c) => inr(c.avgMarketPricePerKg) },
+  { label: "Estimated Revenue", render: (c) => inr(c.estGrossRevenue) },
+  { label: "Estimated Cost", render: (c) => inr(c.estCultivationCost) },
+];
 
 export default function CropComparison({ recommendations, compareList, onToggleCompare, onSelectCrop }) {
-  const selectedCrops = recommendations.filter((c) => compareList.includes(c.id));
-
-  if (selectedCrops.length === 0) {
-    return (
-      <div className="comparison-section empty-comparison">
-        <div className="empty-box">
-          <Layers size={28} color="var(--muted)" />
-          <h4>Crop Comparison Matrix</h4>
-          <p>Click "+ Add to Compare" on any crop card above to compare crops side-by-side.</p>
-        </div>
-      </div>
-    );
-  }
+  const [adding, setAdding] = useState(false);
+  const selected = compareList.map((id) => recommendations.find((c) => c.id === id)).filter(Boolean);
+  const available = recommendations.filter((c) => !compareList.includes(c.id));
+  const bestNet = Math.max(...selected.map((c) => c.estNetReturn));
+  const plot = selected[0] ? formatArea(selected[0].allocatedAcres) : "";
 
   return (
-    <div className="comparison-section">
-      <div className="section-title-strip">
-        <div>
-          <h3>Side-by-Side Crop Comparison</h3>
-          <p>Evaluating economics, water demand, and growing timeline across selected crops.</p>
-        </div>
-        <button
-          className="secondary-button"
-          style={{ fontSize: "12px", padding: "4px 12px", minHeight: "32px" }}
-          onClick={() => compareList.forEach(id => onToggleCompare(id))}
-        >
-          Clear Comparison
-        </button>
-      </div>
+    <div className="page">
+      <PageHeader title="Crop Comparison" subtitle="Compare different crops to make the best decision" />
 
-      <div className="table-responsive">
-        <table className="comparison-table">
-          <thead>
-            <tr>
-              <th>Feature / Parameter</th>
-              {selectedCrops.map((c) => (
-                <th key={c.id}>
-                  <div className="table-crop-header">
-                    <span className="table-crop-emoji">{c.icon}</span>
-                    <div>
-                      <strong>{c.name}</strong>
-                      <span className="badge-tag">{c.suitabilityScore}% Match</span>
-                    </div>
-                  </div>
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td className="row-title">Suitability Level</td>
-              {selectedCrops.map((c) => (
-                <td key={c.id}>
-                  <span className={`status-pill ${c.suitabilityScore >= 85 ? "success" : "warning"}`}>
-                    {c.suitabilityLevel}
-                  </span>
-                </td>
-              ))}
-            </tr>
-
-            <tr>
-              <td className="row-title">Water Requirement</td>
-              {selectedCrops.map((c) => (
-                <td key={c.id}>
-                  <strong>{c.waterReqMm}</strong>
-                  <div className="sub-text">{c.waterReqLevel}</div>
-                </td>
-              ))}
-            </tr>
-
-            <tr>
-              <td className="row-title">Growing Duration</td>
-              {selectedCrops.map((c) => (
-                <td key={c.id}>
-                  <strong>{c.growingPeriodDays}</strong>
-                  <div className="sub-text">{c.harvestWindow}</div>
-                </td>
-              ))}
-            </tr>
-
-            <tr>
-              <td className="row-title">Soil Compatibility</td>
-              {selectedCrops.map((c) => (
-                <td key={c.id}>
-                  <span>{c.soilCompatibility}</span>
-                </td>
-              ))}
-            </tr>
-
-            <tr>
-              <td className="row-title">Est. Yield per Acre</td>
-              {selectedCrops.map((c) => (
-                <td key={c.id}>
-                  <strong>{c.yieldPerAcreKg.toLocaleString("en-IN")} kg</strong>
-                  <div className="sub-text">@ ₹{c.avgMarketPricePerKg}/kg avg मंडी rate</div>
-                </td>
-              ))}
-            </tr>
-
-            <tr>
-              <td className="row-title">Cultivation Cost ({selectedCrops[0]?.allocatedAcres} Acre)</td>
-              {selectedCrops.map((c) => (
-                <td key={c.id}>
-                  <strong>₹{c.estCultivationCost.toLocaleString("en-IN")}</strong>
-                </td>
-              ))}
-            </tr>
-
-            <tr>
-              <td className="row-title">Est. Gross Revenue ({selectedCrops[0]?.allocatedAcres} Acre)</td>
-              {selectedCrops.map((c) => (
-                <td key={c.id}>
-                  <strong style={{ color: "#0ea5e9" }}>₹{c.estGrossRevenue.toLocaleString("en-IN")}</strong>
-                </td>
-              ))}
-            </tr>
-
-            <tr className="highlight-row">
-              <td className="row-title">Est. Net Return ({selectedCrops[0]?.allocatedAcres} Acre)</td>
-              {selectedCrops.map((c) => (
-                <td key={c.id}>
-                  <strong style={{ color: "#16b760", fontSize: "17px" }}>
-                    ₹{c.estNetReturn.toLocaleString("en-IN")}
-                  </strong>
-                </td>
-              ))}
-            </tr>
-
-            <tr>
-              <td className="row-title">Actions</td>
-              {selectedCrops.map((c) => (
-                <td key={c.id}>
-                  <button className="primary-button compact-btn" onClick={() => onSelectCrop(c)}>
-                    View Deep Guidance
+      <div className="card compare-card">
+        <div className="compare-toolbar">
+          <div>
+            <span className="field-label">Select crops to compare</span>
+            <div className="chip-row">
+              {selected.map((c) => (
+                <span key={c.id} className="crop-chip">
+                  {c.shortName}
+                  <button onClick={() => onToggleCompare(c.id)} aria-label={`Remove ${c.shortName}`}>
+                    <X size={13} />
                   </button>
-                </td>
+                </span>
               ))}
-            </tr>
-          </tbody>
-        </table>
+            </div>
+          </div>
+          <div className="add-crop">
+            <button className="btn btn-primary btn-sm" onClick={() => setAdding((a) => !a)} disabled={!available.length}>
+              <Plus size={15} /> Add Crop
+            </button>
+            {adding && available.length > 0 && (
+              <div className="menu-pop">
+                {available.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => {
+                      onToggleCompare(c.id);
+                      setAdding(false);
+                    }}
+                  >
+                    <span>{c.icon}</span> {c.shortName}
+                    <small>{c.suitabilityScore}%</small>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {selected.length === 0 ? (
+          <div className="empty-state">
+            <Layers size={28} />
+            <strong>No crops selected</strong>
+            <span>Use “Add Crop” to compare crops side by side.</span>
+          </div>
+        ) : (
+          <div className="table-scroll">
+            <table className="compare-table">
+              <thead>
+                <tr>
+                  <th>Parameter</th>
+                  {selected.map((c) => (
+                    <th key={c.id} style={{ "--accent": c.accent }}>
+                      <button className="th-crop" onClick={() => onSelectCrop(c)} title="View details">
+                        {c.shortName}
+                      </button>
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {ROWS.map((row) => (
+                  <tr key={row.label}>
+                    <td>
+                      {row.label}
+                      {row.sub && <small>({row.sub === "plot" ? `per ${plot}` : row.sub})</small>}
+                    </td>
+                    {selected.map((c) => (
+                      <td key={c.id} className={row.strong ? "strong" : ""}>{row.render(c)}</td>
+                    ))}
+                  </tr>
+                ))}
+                <tr className="net-row">
+                  <td>Net Return</td>
+                  {selected.map((c) => (
+                    <td key={c.id}>
+                      <span className={c.estNetReturn === bestNet && selected.length > 1 ? "best" : ""}>{inr(c.estNetReturn)}</span>
+                    </td>
+                  ))}
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

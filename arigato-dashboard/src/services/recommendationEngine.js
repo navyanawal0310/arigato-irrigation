@@ -41,7 +41,7 @@ export const MINOR_HIGH_VALUE_CROPS = [
   {
     id: "strawberry",
     name: "Strawberry",
-    kannadaName: "ಸ್ಟ್ರಾಗಳನ್ನು (ಸ್ಟ್ರಾಬೆರಿ)",
+    kannadaName: "ಸ್ಟ್ರಾಬೆರಿ",
     scientificName: "Fragaria × ananassa",
     icon: "🍓",
     category: "Exotic High-Value Fruit",
@@ -151,7 +151,7 @@ export const MINOR_HIGH_VALUE_CROPS = [
     name: "Dragonfruit (Pitaya)",
     kannadaName: "ಡ್ರಾಗನ್ ಫ್ರೂಟ್",
     scientificName: "Hylocereus undatus",
-    icon: "🪻",
+    icon: "🌵",
     category: "Perennial High Margin Fruit",
     idealTempMin: 20,
     idealTempMax: 38,
@@ -220,103 +220,137 @@ export const MINOR_HIGH_VALUE_CROPS = [
   }
 ];
 
+
+// Compact display metadata used by cards, comparison table and charts
+export const CROP_DISPLAY = {
+  capsicum: { shortName: "Capsicum", accent: "#16a34a", duration: "4 – 5 months", water: "Medium", revenue: "High", demand: "High" },
+  strawberry: { shortName: "Strawberry", accent: "#e11d48", duration: "4 – 6 months", water: "Medium", revenue: "High", demand: "High" },
+  tomato: { shortName: "Tomato", accent: "#ea580c", duration: "3 – 4 months", water: "High", revenue: "Medium", demand: "Very High" },
+  mint: { shortName: "Mint", accent: "#0d9488", duration: "2 – 3 months", water: "Low", revenue: "High", demand: "Medium" },
+  dragonfruit: { shortName: "Dragonfruit", accent: "#c026d3", duration: "4 – 5 months", water: "Low", revenue: "High", demand: "Medium" },
+  zucchini: { shortName: "Zucchini", accent: "#65a30d", duration: "2 – 3 months", water: "Medium", revenue: "High", demand: "Medium" },
+};
+
+export const CONVENTIONAL_CROPS = {
+  "Paddy / Rice": { netPerAcre: 35000, name: "Rice (Paddy)" },
+  Wheat: { netPerAcre: 30000, name: "Wheat" },
+  Sugarcane: { netPerAcre: 65000, name: "Sugarcane" },
+  Cotton: { netPerAcre: 40000, name: "Cotton" },
+  Maize: { netPerAcre: 28000, name: "Maize" },
+  Ragi: { netPerAcre: 26000, name: "Ragi (Finger Millet)" },
+};
+
+export const LAND_UNITS = {
+  acre: { label: "acres", toAcres: 1 },
+  sqft: { label: "sq ft", toAcres: 1 / 43560 },
+  guntha: { label: "guntha", toAcres: 1 / 40 },
+  hectare: { label: "hectares", toAcres: 2.47105 },
+};
+
+export function toAcres(size, unit) {
+  return (Number(size) || 0) * (LAND_UNITS[unit]?.toAcres ?? 1);
+}
+
+// Crops that need a lot of water lose points when irrigation is limited
+const WATER_NEED = { Low: 0, Medium: 1, High: 2 };
+const IRRIGATION_POINTS = {
+  available: [15, 15, 15],
+  partial: [14, 10, 5],
+  none: [12, 5, 0],
+};
+
 export function evaluateSuitability({ farmerInput, localityData, sensorData = null }) {
-  const { totalLandAcres = 2.0, highValueLandAcres = 0.5, primaryCrop = "Paddy / Rice", irrigationType = "Drip Irrigation" } = farmerInput || {};
-  const { temp = 27, humidity = 65, rainfall = 50, soilType = "Red Loamy Soil", locationName = "Locality" } = localityData || {};
+  const {
+    plotSize = 2,
+    plotUnit = "acre",
+    minorSharePercent = 25,
+    primaryCrop = "Paddy / Rice",
+    irrigation = "available",
+  } = farmerInput || {};
+  const { temp = 27, humidity = 65, rainfall = 5, soilType = "Red Loamy Soil" } = localityData || {};
+
+  const totalLand = Math.max(toAcres(plotSize, plotUnit), 0.001);
+  const hvLand = totalLand * (minorSharePercent / 100);
+  const convLand = totalLand - hvLand;
+  const convInfo = CONVENTIONAL_CROPS[primaryCrop] || CONVENTIONAL_CROPS["Paddy / Rice"];
+  const conventionalOnlyIncome = Math.round(totalLand * convInfo.netPerAcre);
+  const moisture = sensorData?.moisture_index;
 
   const evaluatedCrops = MINOR_HIGH_VALUE_CROPS.map((crop) => {
-    let score = 70; // Base score
+    const display = CROP_DISPLAY[crop.id];
+    let score = 30;
+    const factors = {};
 
-    // Temperature score (35% weight)
-    if (temp >= crop.idealTempMin && temp <= crop.idealTempMax) {
-      score += 25;
-    } else {
+    // Temperature (25 pts)
+    let tempPts = 25;
+    if (temp < crop.idealTempMin || temp > crop.idealTempMax) {
       const diff = Math.min(Math.abs(temp - crop.idealTempMin), Math.abs(temp - crop.idealTempMax));
-      score += Math.max(0, 25 - diff * 4);
+      tempPts = Math.max(0, 25 - diff * 4);
     }
+    score += tempPts;
+    factors.climate = tempPts >= 20 ? "Good" : tempPts >= 10 ? "Fair" : "Poor";
 
-    // Soil score (25% weight)
-    const matchesSoil = crop.preferredSoils.some((s) => s.toLowerCase().includes(soilType.toLowerCase().split(" ")[0]));
-    if (matchesSoil) score += 20;
-    else score += 10;
+    // Soil (20 pts)
+    const soilKey = soilType.toLowerCase().split(" ")[0];
+    const matchesSoil = crop.preferredSoils.some((s) => s.toLowerCase().includes(soilKey));
+    score += matchesSoil ? 20 : 8;
+    factors.soil = matchesSoil ? "Good" : "Fair";
 
-    // Irrigation & Water match (20% weight)
-    if (irrigationType.includes("Drip") || irrigationType.includes("Sprinkler")) {
-      score += 15;
-    } else {
-      score += 8;
-    }
+    // Water availability vs crop need (15 pts)
+    const waterPts = (IRRIGATION_POINTS[irrigation] || IRRIGATION_POINTS.available)[WATER_NEED[display.water] ?? 1];
+    score += waterPts;
+    factors.water = waterPts >= 14 ? "Good" : waterPts >= 8 ? "Fair" : "Poor";
 
-    // Humidity match (10% weight)
-    if (humidity >= crop.idealHumidityMin && humidity <= crop.idealHumidityMax) {
-      score += 10;
-    } else {
-      score += 5;
-    }
+    // Humidity (10 pts)
+    const humidOk = humidity >= crop.idealHumidityMin && humidity <= crop.idealHumidityMax;
+    score += humidOk ? 10 : 4;
 
-    // If Sensor data is available (Mode 2), refine with field precision
+    // Mode 2: live soil moisture refines the score
     let sensorPrecisionApplied = false;
-    if (sensorData && sensorData.moistureIndex !== undefined) {
+    if (typeof moisture === "number") {
       sensorPrecisionApplied = true;
-      // Adjust score slightly based on real moisture / pH readings
-      if (sensorData.moistureIndex >= 35 && sensorData.moistureIndex <= 75) {
-        score = Math.min(99, score + 4);
-      }
+      if (moisture >= 35 && moisture <= 75) score += 3;
+      else if (moisture < 20 && display.water === "High") score -= 6;
     }
 
-    const finalScore = Math.min(98, Math.max(55, Math.round(score)));
-    let level = "Moderate Match";
-    if (finalScore >= 85) level = "High Match";
-    else if (finalScore < 70) level = "Low Match";
+    const suitabilityScore = Math.min(97, Math.max(40, Math.round(score) - 5));
+    let suitabilityLevel = "Moderate Match";
+    if (suitabilityScore >= 85) suitabilityLevel = "High Match";
+    else if (suitabilityScore < 70) suitabilityLevel = "Low Match";
 
     const reason = crop.reasonTemplate
       .replace("{temp}", temp)
       .replace("{soil}", soilType)
       .replace("{rainfall}", rainfall);
 
-    // Economics scaled to farmer's allocated high-value plot size
-    const allocatedAcres = Number(highValueLandAcres) || 0.5;
-    const estCultivationCost = Math.round(crop.cultivationCostPerAcre * allocatedAcres);
-    const estGrossRevenue = Math.round(crop.grossRevenuePerAcre * allocatedAcres);
-    const estNetReturn = Math.round(crop.netReturnPerAcre * allocatedAcres);
+    const estCultivationCost = Math.round(crop.cultivationCostPerAcre * hvLand);
+    const estGrossRevenue = Math.round(crop.grossRevenuePerAcre * hvLand);
+    const estNetReturn = Math.round(crop.netReturnPerAcre * hvLand);
+    const estYieldKg = Math.round(crop.yieldPerAcreKg * hvLand);
+    const diversifiedIncome = Math.round(convLand * convInfo.netPerAcre + estNetReturn);
 
     return {
       ...crop,
-      suitabilityScore: finalScore,
-      suitabilityLevel: level,
+      ...display,
+      suitabilityScore,
+      suitabilityLevel,
+      factors,
       reason,
-      allocatedAcres,
+      allocatedAcres: Number(hvLand.toFixed(3)),
       estCultivationCost,
       estGrossRevenue,
       estNetReturn,
+      estYieldKg,
+      diversifiedIncome,
+      additionalRevenue: diversifiedIncome - conventionalOnlyIncome,
       sensorPrecisionApplied,
     };
   });
 
-  // Sort descending by suitability score
-  evaluatedCrops.sort((a, b) => b.suitabilityScore - a.suitabilityScore);
+  evaluatedCrops.sort((a, b) => b.suitabilityScore - a.suitabilityScore || b.estNetReturn - a.estNetReturn);
 
-  // Calculate Conventional Crop Return baseline
-  const CONVENTIONAL_CROP_RATES = {
-    "Paddy / Rice": { netPerAcre: 35000, name: "Paddy (Rice)" },
-    "Wheat": { netPerAcre: 30000, name: "Wheat" },
-    "Sugarcane": { netPerAcre: 65000, name: "Sugarcane" },
-    "Cotton": { netPerAcre: 40000, name: "Cotton" },
-    "Maize": { netPerAcre: 28000, name: "Maize" },
-  };
-
-  const convInfo = CONVENTIONAL_CROP_RATES[primaryCrop] || CONVENTIONAL_CROP_RATES["Paddy / Rice"];
-  const totalLand = Number(totalLandAcres) || 2.0;
-  const hvLand = Number(highValueLandAcres) || 0.5;
-  const convLandOnly = Math.max(0.1, totalLand - hvLand);
-
-  // Baseline 100% conventional land income
-  const conventionalOnlyIncome = Math.round(totalLand * convInfo.netPerAcre);
-
-  // Top recommended high value crop for combined diversification strategy
   const topCrop = evaluatedCrops[0];
-  const diversifiedIncome = Math.round((convLandOnly * convInfo.netPerAcre) + topCrop.estNetReturn);
-  const additionalRevenue = Math.max(0, diversifiedIncome - conventionalOnlyIncome);
+  const additionalRevenue = Math.max(0, topCrop.additionalRevenue);
   const percentageBoost = Math.round((additionalRevenue / (conventionalOnlyIncome || 1)) * 100);
 
   return {
@@ -325,10 +359,10 @@ export function evaluateSuitability({ farmerInput, localityData, sensorData = nu
     economics: {
       totalLand,
       hvLand,
-      convLandOnly,
+      convLand,
       primaryCrop: convInfo.name,
       conventionalOnlyIncome,
-      diversifiedIncome,
+      diversifiedIncome: topCrop.diversifiedIncome,
       additionalRevenue,
       percentageBoost,
     },
