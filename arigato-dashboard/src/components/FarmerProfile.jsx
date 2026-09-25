@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { ArrowRight, MapPin } from "lucide-react";
-import { LOCATION_PRESETS, getPreset, nearestPreset } from "../services/weatherService";
+import { LOCATION_PRESETS, getPreset, nearestPreset, presetLocation } from "../services/weatherService";
 import { CONVENTIONAL_CROPS, LAND_UNITS, toAcres } from "../services/recommendationEngine";
 import { PageHeader } from "./ui";
 import FieldMap from "./FieldMap";
@@ -23,8 +23,11 @@ export default function FarmerProfile({ farmerInput, onSave }) {
 
   const acres = toAcres(draft.plotSize, draft.plotUnit);
   const sideFt = Math.sqrt(acres * 43560);
-  const preset = draft.coords ? nearestPreset(draft.coords.lat, draft.coords.lon) : getPreset(draft.locationPreset);
-  const center = draft.coords ?? { lat: preset.fieldLat, lon: preset.fieldLon };
+
+  // Derive map centre and preset reference from the new location object
+  const loc = draft.location ?? presetLocation(LOCATION_PRESETS[0]);
+  const preset = loc.presetId ? getPreset(loc.presetId) : nearestPreset(loc.lat, loc.lon);
+  const center = { lat: loc.mapLat ?? loc.lat, lon: loc.mapLon ?? loc.lon };
   const areaLabel = `${Number(draft.plotSize).toLocaleString("en-IN")} ${LAND_UNITS[draft.plotUnit].label}`;
 
   const locate = () => {
@@ -36,7 +39,19 @@ export default function FarmerProfile({ farmerInput, onSave }) {
     setLocateError(null);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        set("coords", { lat: pos.coords.latitude, lon: pos.coords.longitude });
+        const near = nearestPreset(pos.coords.latitude, pos.coords.longitude);
+        setDraft((d) => ({
+          ...d,
+          location: {
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude,
+            mapLat: pos.coords.latitude,
+            mapLon: pos.coords.longitude,
+            name: `Near ${near.name}`,
+            state: near.state,
+            source: "gps",
+          },
+        }));
         setLocating(false);
       },
       (err) => {
@@ -46,6 +61,8 @@ export default function FarmerProfile({ farmerInput, onSave }) {
       { enableHighAccuracy: true, timeout: 10000 }
     );
   };
+
+  const locationDisplay = loc.source === "gps" ? `My Field (near ${preset.name})` : loc.name ? `${loc.name}, ${loc.state || ""}` : `${preset.name}, ${preset.state}`;
 
   return (
     <div className="page">
@@ -59,12 +76,13 @@ export default function FarmerProfile({ farmerInput, onSave }) {
               <MapPin size={16} className="text-green" />
               <select
                 id="loc"
-                value={draft.coords ? "gps" : draft.locationPreset}
+                value={loc.presetId ?? "custom"}
                 onChange={(e) => {
-                  setDraft((d) => ({ ...d, locationPreset: e.target.value, coords: null }));
+                  if (e.target.value === "custom") return;
+                  setDraft((d) => ({ ...d, location: presetLocation(getPreset(e.target.value)) }));
                 }}
               >
-                {draft.coords && <option value="gps">My Field (near {preset.name})</option>}
+                {!loc.presetId && <option value="custom">{locationDisplay}</option>}
                 {LOCATION_PRESETS.map((p) => (
                   <option key={p.id} value={p.id}>{p.name}, {p.state}</option>
                 ))}

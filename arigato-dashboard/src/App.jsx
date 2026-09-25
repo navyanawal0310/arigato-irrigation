@@ -22,8 +22,11 @@ import {
 
 import "./App.css";
 
-import { fetchLocalityWeather, LOCATION_PRESETS } from "./services/weatherService";
+import { fetchLocalityWeather, LOCATION_PRESETS, presetLocation } from "./services/weatherService";
 import { evaluateSuitability } from "./services/recommendationEngine";
+import { getIpLocation, getSoilInsights, searchPlaces } from "./services/api";
+import { isMissingTable, loadProfile, saveProfile, supabase } from "./services/supabaseClient";
+import AccountMenu from "./components/AccountMenu";
 import HomePage from "./components/HomePage";
 import FarmerProfile from "./components/FarmerProfile";
 import LocalityIntelligence from "./components/LocalityIntelligence";
@@ -93,6 +96,28 @@ function useClickOutside(ref, onOutside) {
 }
 
 
+const PROFILE_STORAGE_KEY = "krishi-setu-profile";
+const DEFAULT_COMPARE = ["strawberry", "capsicum", "tomato", "mint"];
+const DEFAULT_FARMER_INPUT = {
+  location: presetLocation(LOCATION_PRESETS[0]),
+  plotSize: 2,
+  plotUnit: "acre",
+  primaryCrop: "Paddy / Rice",
+  irrigation: "available",
+  farmingType: "Open Field",
+  minorSharePercent: 25,
+};
+
+// Signed-out farmers keep their profile in this browser
+function readLocalProfile() {
+  try {
+    const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
 function App() {
   const [darkMode, setDarkMode] = useState(false);
   const [lang, setLang] = useState("en");
@@ -109,20 +134,22 @@ function App() {
   const failureCount = useRef(0);
 
   const [activeMode, setActiveMode] = useState("general");
-  const [farmerInput, setFarmerInput] = useState({
-    locationPreset: "mandya",
-    coords: null,
-    plotSize: 2,
-    plotUnit: "acre",
-    primaryCrop: "Paddy / Rice",
-    irrigation: "available",
-    farmingType: "Open Field",
-    minorSharePercent: 25,
-  });
+  const [isFirstVisit] = useState(() => !readLocalProfile());
+  const [farmerInput, setFarmerInput] = useState(() => ({ ...DEFAULT_FARMER_INPUT, ...readLocalProfile()?.farmerInput }));
+  const [compareList, setCompareList] = useState(() => readLocalProfile()?.compareList ?? DEFAULT_COMPARE);
   const [localityData, setLocalityData] = useState(null);
   const [isRefreshingWeather, setIsRefreshingWeather] = useState(false);
-  const [compareList, setCompareList] = useState(["strawberry", "capsicum", "tomato", "mint"]);
   const [selectedCrop, setSelectedCrop] = useState(null);
+
+  const [placeQuery, setPlaceQuery] = useState("");
+  const [placeResults, setPlaceResults] = useState(null);
+  const [placeStatus, setPlaceStatus] = useState(null); // null | "searching" | "detecting" | error message
+
+  const [session, setSession] = useState(null);
+  const [syncStatus, setSyncStatus] = useState("idle");
+  const profileLoadedFor = useRef(null);
+  const latestProfile = useRef({ farmerInput, compareList });
+  latestProfile.current = { farmerInput, compareList };
 
   const t = TRANSLATIONS[lang];
   const topbarRef = useRef(null);
@@ -132,23 +159,162 @@ function App() {
     document.documentElement.style.colorScheme = darkMode ? "dark" : "light";
   }, [darkMode]);
 
-  const { locationPreset, coords } = farmerInput;
+  const setLocation = (location) => setFarmerInput((f) => ({ ...f, location }));
+
+  // First visit: locate the farmer by IP (unless they've already picked a place)
+  useEffect(() => {
+    if (!isFirstVisit) return;
+    let cancelled = false;
+    getIpLocation()
+      .then((loc) => {
+        if (cancelled || !Number.isFinite(loc.lat)) return;
+        setFarmerInput((f) => (f.location.source === "preset" && f.location.presetId === LOCATION_PRESETS[0].id ? { ...f, location: loc } : f));
+      })
+      .catch((err) => console.warn("IP location unavailable:", err.message));
+    return () => {
+      cancelled = true;
+    };
+  }, [isFirstVisit]);
+
+  const { location } = farmerInput;
   const loadWeather = async () => {
     setIsRefreshingWeather(true);
-    setLocalityData(await fetchLocalityWeather(locationPreset, coords));
+    setLocalityData(await fetchLocalityWeather(location));
     setIsRefreshingWeather(false);
   };
 
   useEffect(() => {
     let cancelled = false;
-    fetchLocalityWeather(locationPreset, coords).then((data) => {
-      if (cancelled) return;
-      setLocalityData(data);
+    fetchLocalityWeather(location).then((data) => {
+      if (!cancelled) setLocalityData(data);
     });
     return () => {
       cancelled = true;
     };
-  }, [locationPreset, coords]);
+    // Refetch only when the place itself changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.lat, location.lon, location.name]);
+
+  // Gemini soil + micro-crop analysis, keyed by place (slow, so results are remembered per location)
+  const soilKey = localityData ? `${localityData.lat},${localityData.lon}` : null;
+  const [soilByKey, setSoilByKey] = useState({});
+  const [soilAttempt, setSoilAttempt] = useState(0);
+  const soil = (soilKey && soilByKey[soilKey]) || { status: soilKey ? "loading" : "idle" };
+
+  useEffect(() => {
+    if (!soilKey || soilByKey[soilKey]) return;
+    let cancelled = false;
+    const { lat, lon, shortName, district, state, country, temp, humidity, rainfall } = localityData;
+    getSoilInsights({ lat, lon, name: shortName, district, state, country, temp, humidity, rainfall })
+      .then((data) => !cancelled && setSoilByKey((m) => ({ ...m, [soilKey]: { status: "ready", data } })))
+      .catch((err) => !cancelled && setSoilByKey((m) => ({ ...m, [soilKey]: { status: "error", error: err.message } })));
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [soilKey, soilAttempt]);
+
+  const retrySoil = () => {
+    setSoilByKey((m) => {
+      const next = { ...m };
+      delete next[soilKey];
+      return next;
+    });
+    setSoilAttempt((a) => a + 1);
+  };
+
+  const aiInsights = soil.status === "ready" ? soil.data : null;
+  const locality = localityData && {
+    ...localityData,
+    ...(aiInsights && {
+      soilType: aiInsights.soilType,
+      soilPh: aiInsights.soilPh,
+      organicMatter: aiInsights.organicMatter,
+      drainage: aiInsights.drainage,
+      zone: aiInsights.agroZone,
+      soilTexture: aiInsights.soilTexture,
+      soilNote: aiInsights.soilNote,
+      soilSource: "gemini",
+    }),
+  };
+
+  // Supabase auth session
+  useEffect(() => {
+    if (!supabase) return;
+    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  const userId = session?.user?.id;
+  const userName = session?.user?.user_metadata?.full_name;
+
+  // On sign-in: pull the saved farm profile, or upload this browser's one for a new account
+  useEffect(() => {
+    if (!userId) {
+      profileLoadedFor.current = null;
+      return;
+    }
+    let cancelled = false;
+    loadProfile(userId)
+      .then(async (remote) => {
+        if (cancelled) return;
+        if (remote) {
+          setFarmerInput((f) => ({ ...f, ...remote.farmerInput }));
+          if (remote.compareList?.length) setCompareList(remote.compareList);
+        } else {
+          const { farmerInput: current, compareList: currentCompare } = latestProfile.current;
+          await saveProfile(userId, current, currentCompare, userName);
+        }
+        profileLoadedFor.current = userId;
+        setSyncStatus("saved");
+      })
+      .catch((err) => !cancelled && setSyncStatus(isMissingTable(err) ? "no-table" : "error"));
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, userName]);
+
+  // Persist changes: always to this browser, and to Supabase when signed in
+  useEffect(() => {
+    try {
+      localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify({ farmerInput, compareList }));
+    } catch {
+      // storage unavailable (private mode) — nothing to do
+    }
+    if (!userId || profileLoadedFor.current !== userId) return;
+    const timer = setTimeout(() => {
+      setSyncStatus("saving");
+      saveProfile(userId, farmerInput, compareList)
+        .then(() => setSyncStatus("saved"))
+        .catch((err) => setSyncStatus(isMissingTable(err) ? "no-table" : "error"));
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [farmerInput, compareList, userId]);
+
+  const detectLocation = async () => {
+    setPlaceStatus("detecting");
+    try {
+      setLocation(await getIpLocation());
+      setPlaceStatus(null);
+      setOpenMenu(null);
+    } catch (err) {
+      setPlaceStatus(`Couldn’t detect location: ${err.message}`);
+    }
+  };
+
+  const runPlaceSearch = async (e) => {
+    e.preventDefault();
+    if (placeQuery.trim().length < 2) return;
+    setPlaceStatus("searching");
+    try {
+      setPlaceResults(await searchPlaces(placeQuery));
+      setPlaceStatus(null);
+    } catch (err) {
+      setPlaceResults([]);
+      setPlaceStatus(`Search failed: ${err.message}`);
+    }
+  };
 
   // ESP32 telemetry polling
   useEffect(() => {
@@ -191,8 +357,9 @@ function App() {
 
   const engine = evaluateSuitability({
     farmerInput,
-    localityData,
+    localityData: locality,
     sensorData: activeMode === "personalized" && deviceConnected ? fieldData?.soil : null,
+    aiInsights,
   });
 
   const toggleCompare = (cropId) =>
@@ -220,7 +387,7 @@ function App() {
       label: `${p.name}, ${p.state}`,
       kind: "Location",
       action: () => {
-        setFarmerInput((f) => ({ ...f, locationPreset: p.id, coords: null }));
+        setLocation(presetLocation(p));
         setOpenMenu(null);
       },
     }));
@@ -239,7 +406,7 @@ function App() {
     return list;
   })();
 
-  const locationLabel = localityData?.locationName ?? "Loading…";
+  const locationLabel = localityData?.locationName ?? "Locating…";
 
   const pages = {
     overview: (
@@ -360,12 +527,47 @@ function App() {
             </button>
             {openMenu === "location" && (
               <div className="menu-pop">
+                <form className="place-search-row" onSubmit={runPlaceSearch}>
+                  <input
+                    value={placeQuery}
+                    onChange={(e) => setPlaceQuery(e.target.value)}
+                    placeholder="Search town or village…"
+                    aria-label="Search places"
+                  />
+                  <button type="submit" className="btn btn-primary btn-sm" disabled={placeStatus === "searching"}>
+                    {placeStatus === "searching" ? "…" : <Search size={14} />}
+                  </button>
+                </form>
+                <button className="detect-btn" onClick={detectLocation} disabled={placeStatus === "detecting"}>
+                  <MapPin size={14} /> {placeStatus === "detecting" ? "Detecting…" : "Detect my location"}
+                </button>
+                {placeResults && placeResults.length > 0 && (
+                  <>
+                    <span className="menu-heading">Results</span>
+                    {placeResults.map((p) => (
+                      <button
+                        key={p.key}
+                        onClick={() => {
+                          setLocation({ lat: p.lat, lon: p.lon, name: p.name, state: p.state, district: p.district, country: p.country, source: "search" });
+                          setPlaceResults(null);
+                          setPlaceQuery("");
+                          setOpenMenu(null);
+                        }}
+                      >
+                        {p.name}, {p.state}
+                      </button>
+                    ))}
+                  </>
+                )}
+                {placeResults && placeResults.length === 0 && <span className="menu-empty">No places found</span>}
+                {typeof placeStatus === "string" && placeStatus.startsWith("Couldn") && <span className="menu-empty">{placeStatus}</span>}
+                <span className="menu-heading">Presets</span>
                 {LOCATION_PRESETS.map((p) => (
                   <button
                     key={p.id}
-                    className={!coords && p.id === locationPreset ? "selected" : ""}
+                    className={location.source === "preset" && location.presetId === p.id ? "selected" : ""}
                     onClick={() => {
-                      setFarmerInput((f) => ({ ...f, locationPreset: p.id, coords: null }));
+                      setLocation(presetLocation(p));
                       setOpenMenu(null);
                     }}
                   >
@@ -432,9 +634,16 @@ function App() {
                 </div>
               )}
             </div>
-            <button className="avatar" onClick={() => navigate("profile")} aria-label="Farmer profile">
-              <User size={18} />
-            </button>
+            <div className="popover-anchor">
+              <button className="avatar" onClick={() => setOpenMenu(openMenu === "account" ? null : "account")} aria-label="Farmer profile">
+                <User size={18} />
+              </button>
+              {openMenu === "account" && (
+                <div className="menu-pop right">
+                  <AccountMenu session={session} syncStatus={syncStatus} onGoToProfile={() => { navigate("profile"); setOpenMenu(null); }} />
+                </div>
+              )}
+            </div>
           </div>
         </header>
 

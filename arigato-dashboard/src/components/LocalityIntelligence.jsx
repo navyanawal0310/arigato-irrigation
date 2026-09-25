@@ -10,7 +10,9 @@ export default function LocalityIntelligence({ localityData, onRefresh, isRefres
     );
   }
 
-  const live = localityData.source === "OPEN_METEO_API";
+  const live = localityData.source !== "LOCALITY_AGRO_DATABASE";
+  const sourceLabel = localityData.source === "ACCUWEATHER" ? "AccuWeather" : localityData.source === "OPEN_METEO_API" ? "Open-Meteo" : "Offline";
+  const sourceDesc = live ? `From ${sourceLabel} & ${localityData.soilSource === "gemini" ? "Gemini AI" : "ICAR"} sources` : "Regional averages (API unreachable)";
   const weather = [
     { icon: <Thermometer size={30} className="wx wx-sun" />, value: `${localityData.temp}°C`, label: "Temperature", sub: `Feels like ${localityData.feelsLike}°C` },
     { icon: <Droplets size={30} className="wx wx-rain" />, value: `${localityData.humidity}%`, label: "Humidity", sub: "Relative humidity" },
@@ -28,7 +30,7 @@ export default function LocalityIntelligence({ localityData, onRefresh, isRefres
           <div className="header-actions">
             <div className={`source-badge ${live ? "" : "offline"}`}>
               <strong>{live ? "API Data" : "Offline Data"}</strong>
-              <span>{live ? "From Open-Meteo & ICAR sources" : "Regional averages (API unreachable)"}</span>
+              <span>{sourceDesc}</span>
             </div>
             <button className="icon-btn" onClick={onRefresh} disabled={isRefreshing} aria-label="Refresh weather">
               <RefreshCw size={16} className={isRefreshing ? "spin" : ""} />

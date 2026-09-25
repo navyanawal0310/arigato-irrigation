@@ -1,5 +1,6 @@
 // Locality Weather & Geo Service for KRISHI SETU
-// Integrates with Open-Meteo API for real-time locality climate data
+// Live weather from AccuWeather (server-side, via /krishi-api), falling back to Open-Meteo, then regional averages
+import { getWeather } from "./api";
 
 export const LOCATION_PRESETS = [
   {
@@ -174,79 +175,116 @@ function syntheticForecast(preset) {
   });
 }
 
-export async function fetchLocalityWeather(locationPreset, coords = null) {
-  const preset = coords ? nearestPreset(coords.lat, coords.lon) : getPreset(locationPreset);
-  const lat = coords?.lat ?? preset.lat;
-  const lon = coords?.lon ?? preset.lon;
-  const locationName = coords ? `My Field (near ${preset.name})` : `${preset.name}, ${preset.state}`;
-
-  const base = {
-    locationName,
-    shortName: coords ? "My Field" : preset.name,
+// A location the whole app works from: preset town, IP lookup, GPS fix or place search
+export function presetLocation(preset) {
+  return {
+    lat: preset.lat,
+    lon: preset.lon,
+    mapLat: preset.fieldLat,
+    mapLon: preset.fieldLon,
+    name: preset.name,
     state: preset.state,
-    lat,
-    lon,
+    source: "preset",
+    presetId: preset.id,
+  };
+}
+
+function regionalSoil(location) {
+  const preset = location.presetId ? getPreset(location.presetId) : nearestPreset(location.lat, location.lon);
+  return {
     soilType: preset.soilType,
     soilPh: preset.soilPh,
     organicMatter: preset.organicMatter,
     drainage: preset.drainage,
     zone: preset.zone,
+    soilSource: "regional",
+    soilReference: preset.name,
   };
+}
 
+async function fromOpenMeteo(location) {
+  const { lat, lon } = location;
+  const url =
+    `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
+    `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m` +
+    `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&forecast_days=7&timezone=auto`;
+
+  const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+  const data = await res.json();
+
+  const temp = Math.round(data.current?.temperature_2m ?? 27);
+  const code = data.current?.weather_code ?? 0;
+  const daily = data.daily ?? {};
+  const forecast = (daily.time ?? []).map((date, i) => ({
+    date,
+    label: dayLabel(date, i),
+    code: daily.weather_code?.[i] ?? 0,
+    tMax: Math.round(daily.temperature_2m_max?.[i] ?? temp),
+    tMin: Math.round(daily.temperature_2m_min?.[i] ?? temp - 6),
+    rain: Number((daily.precipitation_sum?.[i] ?? 0).toFixed(1)),
+  }));
+
+  return {
+    source: "OPEN_METEO_API",
+    temp,
+    feelsLike: Math.round(data.current?.apparent_temperature ?? temp),
+    humidity: Math.round(data.current?.relative_humidity_2m ?? 60),
+    rainfall: forecast[0]?.rain ?? 0,
+    condition: describeWeatherCode(code),
+    weatherCode: code,
+    windSpeed: Math.round(data.current?.wind_speed_10m ?? 8),
+    windDirection: compassFromDegrees(data.current?.wind_direction_10m ?? 225),
+    tempRange: `${forecast[0]?.tMin ?? temp - 4}°C – ${forecast[0]?.tMax ?? temp + 5}°C`,
+    forecast,
+  };
+}
+
+function fromRegionalDefaults(location) {
+  const preset = location.presetId ? getPreset(location.presetId) : nearestPreset(location.lat, location.lon);
+  const forecast = syntheticForecast(preset);
+  return {
+    source: "LOCALITY_AGRO_DATABASE",
+    temp: preset.defaultTemp,
+    feelsLike: preset.defaultTemp + 1,
+    humidity: preset.defaultHumidity,
+    rainfall: forecast[0].rain,
+    condition: preset.defaultCondition,
+    weatherCode: 2,
+    windSpeed: 10,
+    windDirection: "South West",
+    tempRange: `${preset.defaultTemp - 6}°C – ${preset.defaultTemp + 1}°C`,
+    forecast,
+  };
+}
+
+// AccuWeather (via /krishi-api) → Open-Meteo → regional averages
+export async function fetchLocalityWeather(location) {
+  let weather;
   try {
-    const url =
-      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-      `&current=temperature_2m,apparent_temperature,relative_humidity_2m,weather_code,wind_speed_10m,wind_direction_10m` +
-      `&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_sum&forecast_days=7&timezone=auto`;
-
-    const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const data = await res.json();
-
-    const temp = Math.round(data.current?.temperature_2m ?? preset.defaultTemp);
-    const code = data.current?.weather_code ?? 0;
-    const daily = data.daily ?? {};
-    const forecast = (daily.time ?? []).map((date, i) => ({
-      date,
-      label: dayLabel(date, i),
-      code: daily.weather_code?.[i] ?? 0,
-      tMax: Math.round(daily.temperature_2m_max?.[i] ?? temp),
-      tMin: Math.round(daily.temperature_2m_min?.[i] ?? temp - 6),
-      rain: Number((daily.precipitation_sum?.[i] ?? 0).toFixed(1)),
-    }));
-
-    return {
-      ...base,
-      source: "OPEN_METEO_API",
-      temp,
-      feelsLike: Math.round(data.current?.apparent_temperature ?? temp),
-      humidity: Math.round(data.current?.relative_humidity_2m ?? preset.defaultHumidity),
-      rainfall: forecast[0]?.rain ?? 0,
-      condition: describeWeatherCode(code),
-      weatherCode: code,
-      windSpeed: Math.round(data.current?.wind_speed_10m ?? 8),
-      windDirection: compassFromDegrees(data.current?.wind_direction_10m ?? 225),
-      tempRange: `${forecast[0]?.tMin ?? temp - 4}°C – ${forecast[0]?.tMax ?? temp + 5}°C`,
-      forecast,
-      fetchedAt: new Date(),
-    };
+    weather = await getWeather(location.lat, location.lon);
   } catch (err) {
-    console.warn("Weather API fallback used:", err.message);
-    const forecast = syntheticForecast(preset);
-    return {
-      ...base,
-      source: "LOCALITY_AGRO_DATABASE",
-      temp: preset.defaultTemp,
-      feelsLike: preset.defaultTemp + 1,
-      humidity: preset.defaultHumidity,
-      rainfall: forecast[0].rain,
-      condition: preset.defaultCondition,
-      weatherCode: 2,
-      windSpeed: 10,
-      windDirection: "South West",
-      tempRange: `${preset.defaultTemp - 6}°C – ${preset.defaultTemp + 1}°C`,
-      forecast,
-      fetchedAt: new Date(),
-    };
+    console.warn("AccuWeather unavailable, falling back to Open-Meteo:", err.message);
+    try {
+      weather = await fromOpenMeteo(location);
+    } catch (err2) {
+      console.warn("Open-Meteo unavailable, using regional averages:", err2.message);
+      weather = fromRegionalDefaults(location);
+    }
   }
+
+  const name = location.name || weather.place?.name || "My Field";
+  const state = location.state || weather.place?.state || "";
+  return {
+    ...regionalSoil(location),
+    ...weather,
+    locationName: state ? `${name}, ${state}` : name,
+    shortName: name,
+    district: location.district || weather.place?.district || "",
+    state,
+    country: location.country || weather.place?.country || "India",
+    lat: location.lat,
+    lon: location.lon,
+    fetchedAt: new Date(),
+  };
 }

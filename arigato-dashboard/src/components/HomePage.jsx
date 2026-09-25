@@ -92,7 +92,7 @@ export default function HomePage({ localityData, engine, activeMode, onModeChang
           </div>
           <p className="muted small">
             {activeMode === "general"
-              ? "Using live Open-Meteo weather and ICAR soil data — no hardware needed."
+              ? "Using live AccuWeather and Gemini AI soil analysis — no hardware needed."
               : deviceConnected
                 ? "Live ESP32 soil moisture is refining every suitability score."
                 : "Waiting for the ESP32 field node. Scores use locality data until it connects."}

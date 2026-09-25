@@ -221,6 +221,17 @@ export const MINOR_HIGH_VALUE_CROPS = [
 ];
 
 
+// Soil classes the engine understands — Gemini soil analysis is constrained to this list
+export const SOIL_TYPES = [
+  "Red Loamy Soil",
+  "Red Laterite Soil",
+  "Black Cotton Soil",
+  "Medium Black Soil",
+  "Alluvial Loam Soil",
+  "Mountain Brown Soil",
+  "Sandy Loam",
+];
+
 // Compact display metadata used by cards, comparison table and charts
 export const CROP_DISPLAY = {
   capsicum: { shortName: "Capsicum", accent: "#16a34a", duration: "4 – 5 months", water: "Medium", revenue: "High", demand: "High" },
@@ -259,7 +270,7 @@ const IRRIGATION_POINTS = {
   none: [12, 5, 0],
 };
 
-export function evaluateSuitability({ farmerInput, localityData, sensorData = null }) {
+export function evaluateSuitability({ farmerInput, localityData, sensorData = null, aiInsights = null }) {
   const {
     plotSize = 2,
     plotUnit = "acre",
@@ -275,6 +286,7 @@ export function evaluateSuitability({ farmerInput, localityData, sensorData = nu
   const convInfo = CONVENTIONAL_CROPS[primaryCrop] || CONVENTIONAL_CROPS["Paddy / Rice"];
   const conventionalOnlyIncome = Math.round(totalLand * convInfo.netPerAcre);
   const moisture = sensorData?.moisture_index;
+  const aiScores = new Map((aiInsights?.cropScores ?? []).map((s) => [s.id, s]));
 
   const evaluatedCrops = MINOR_HIGH_VALUE_CROPS.map((crop) => {
     const display = CROP_DISPLAY[crop.id];
@@ -291,8 +303,7 @@ export function evaluateSuitability({ farmerInput, localityData, sensorData = nu
     factors.climate = tempPts >= 20 ? "Good" : tempPts >= 10 ? "Fair" : "Poor";
 
     // Soil (20 pts)
-    const soilKey = soilType.toLowerCase().split(" ")[0];
-    const matchesSoil = crop.preferredSoils.some((s) => s.toLowerCase().includes(soilKey));
+    const matchesSoil = crop.preferredSoils.includes(soilType);
     score += matchesSoil ? 20 : 8;
     factors.soil = matchesSoil ? "Good" : "Fair";
 
@@ -313,15 +324,18 @@ export function evaluateSuitability({ farmerInput, localityData, sensorData = nu
       else if (moisture < 20 && display.water === "High") score -= 6;
     }
 
-    const suitabilityScore = Math.min(97, Math.max(40, Math.round(score) - 5));
+    // Blend in Gemini's location-specific judgement when available
+    const ai = aiScores.get(crop.id);
+    const ruleScore = Math.round(score) - 5;
+    const blended = ai ? 0.6 * ruleScore + 0.4 * ai.score : ruleScore;
+    const suitabilityScore = Math.min(97, Math.max(40, Math.round(blended)));
     let suitabilityLevel = "Moderate Match";
     if (suitabilityScore >= 85) suitabilityLevel = "High Match";
     else if (suitabilityScore < 70) suitabilityLevel = "Low Match";
 
-    const reason = crop.reasonTemplate
-      .replace("{temp}", temp)
-      .replace("{soil}", soilType)
-      .replace("{rainfall}", rainfall);
+    const reason =
+      ai?.reason ??
+      crop.reasonTemplate.replace("{temp}", temp).replace("{soil}", soilType).replace("{rainfall}", rainfall);
 
     const estCultivationCost = Math.round(crop.cultivationCostPerAcre * hvLand);
     const estGrossRevenue = Math.round(crop.grossRevenuePerAcre * hvLand);
@@ -344,6 +358,7 @@ export function evaluateSuitability({ farmerInput, localityData, sensorData = nu
       diversifiedIncome,
       additionalRevenue: diversifiedIncome - conventionalOnlyIncome,
       sensorPrecisionApplied,
+      aiScore: ai?.score ?? null,
     };
   });
 

@@ -411,6 +411,43 @@
   color: var(--muted);
 }
 
+.place-search-row {
+  display: flex;
+  gap: 6px;
+  padding: 6px 6px 4px;
+}
+.place-search-row input {
+  flex: 1;
+  padding: 7px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--surface-2);
+}
+.place-search-row input:focus {
+  outline: 2px solid var(--green);
+  outline-offset: -1px;
+}
+
+.detect-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--green-strong);
+  background: var(--green-softer);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.detect-btn:hover {
+  background: var(--green-soft);
+}
+
 .alert-item {
   display: flex;
   gap: 10px;
