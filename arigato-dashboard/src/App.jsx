@@ -16,1270 +16,679 @@ import {
   Waves,
   Gauge,
   ShieldCheck,
+  AlertTriangle,
+  Clock,
+  CloudRain,
+  Settings,
+  Flame,
 } from "lucide-react";
 
 import "./App.css";
 
+// Multilingual Dictionary (English + Kannada)
+const TRANSLATIONS = {
+  en: {
+    brandSubtitle: "Smart Irrigation & Crop Defense",
+    navHome: "Home",
+    navDashboard: "Live Cockpit",
+    navAbout: "How it Works",
+    navTeam: "Team",
+    heroKicker: "SENSING TODAY. SMARTER DECISIONS FOR TOMORROW.",
+    heroTitle1: "Smarter Irrigation,",
+    heroTitle2: "Healthier Harvests.",
+    heroDesc:
+      "A closed-loop agronomic intelligence system engineered for smallholder farmers. Fuses underground capacitive soil stress with FAO-56 atmospheric demand, fungal pathogen defense, and rooftop rain harvesting.",
+    ctaCockpit: "View Live Cockpit",
+    ctaHow: "How it Works",
+    benefitWater: "Conserve Water",
+    benefitYield: "Maximize Yield",
+    benefitCost: "Lower Power Costs",
+    benefitDefense: "Prevent Disease",
+    cockpitHeading: "What should the farmer do right now?",
+    cockpitSub: "AUTONOMOUS FIELD DIRECTIVE",
+    decisionLabel: "RECOMMENDED ACTION",
+    diseaseTitle: "Pathogen & Fungal Infection Risk",
+    diseaseSafe: "Weather conditions unfavorable for fungal sporulation.",
+    harvestTitle: "Free Rain-Catchment Potential",
+    harvestDesc: "Estimated free water yield from rooftop/shed runoff.",
+    dosingTitle: "Virtual Volumetric Dosing",
+    dosingDesc: "Calculated pump run time to achieve target soil hydration.",
+    modelHeader: "AGRONOMIC HYDRAULIC DEFICIT (FAO-56)",
+    whyLabel: "EXPLAINABLE AGRONOMIC REASONING",
+  },
+  kn: {
+    brandSubtitle: "ಸ್ಮಾರ್ಟ್ ನೀರಾವರಿ ಮತ್ತು ಬೆಳೆ ರಕ್ಷಣೆ",
+    navHome: "ಮುಖಪುಟ",
+    navDashboard: "ಲೈವ್ ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
+    navAbout: "ಕಾರ್ಯವಿಧಾನ",
+    navTeam: "ತಂಡ",
+    heroKicker: "ಇಂದಿನ ಸಂವೇದನೆ. ನಾಳಿನ ಸ್ಮಾರ್ಟ್ ಕೃಷಿ ನಿರ್ಧಾರಗಳು.",
+    heroTitle1: "ಸ್ಮಾರ್ಟ್ ನೀರಾವರಿ,",
+    heroTitle2: "ಉತ್ತಮ ಬೆಳೆ ಇಳುವರಿ.",
+    heroDesc:
+      "ಸಣ್ಣ ರೈತರಿಗಾಗಿ ವಿನ್ಯಾಸಗೊಳಿಸಲಾದ ಸ್ವಾಯತ್ತ ಕೃಷಿ ತಂತ್ರಜ್ಞಾನ. ಮಣ್ಣಿನ ತೇವಾಂಶ, ವಾತಾವರಣದ ನೀರಿನ ಬೇಡಿಕೆ, ಶಿಲೀಂಧ್ರ ರೋಗ ಮುನ್ನೆಚ್ಚರಿಕೆ ಮತ್ತು ಮಳೆನೀರು ಸಂಗ್ರಹಣೆಯನ್ನು ಒಟ್ಟುಗೂಡಿಸುವ ಕ್ರಾಂತಿಕಾರಿ ವ್ಯವಸ್ಥೆ.",
+    ctaCockpit: "ಲೈವ್ ನಿರ್ಧಾರ ವೀಕ್ಷಿಸಿ",
+    ctaHow: "ಕಾರ್ಯವಿಧಾನ ತಿಳಿಯಿರಿ",
+    benefitWater: "ನೀರು ಉಳಿತಾಯ",
+    benefitYield: "ಹೆಚ್ಚಿನ ಇಳುವರಿ",
+    benefitCost: "ಕಡಿಮೆ ವಿದ್ಯುತ್ ವೆಚ್ಚ",
+    benefitDefense: "ರೋಗ ತಡೆಗಟ್ಟುವಿಕೆ",
+    cockpitHeading: "ರೈತರು ಈಗ ಏನು ಮಾಡಬೇಕು?",
+    cockpitSub: "ಸ್ವಾಯತ್ತ ಕ್ಷೇತ್ರ ನಿರ್ಧಾರ",
+    decisionLabel: "ಪ್ರಸ್ತುತ ಶಿಫಾರಸು",
+    diseaseTitle: "ಬೆಳೆ ರೋಗ ಮತ್ತು ಶಿಲೀಂಧ್ರ ಅಪಾಯ",
+    diseaseSafe: "ಹವಾಮಾನವು ಶಿಲೀಂಧ್ರ ಹರಡುವಿಕೆಗೆ ವಿರುದ್ಧವಾಗಿದೆ.",
+    harvestTitle: "ಉಚಿತ ಮಳೆ ನೀರು ಸಂಗ್ರಹಣಾ ಸಾಮರ್ಥ್ಯ",
+    harvestDesc: "ಸೂರುಗಳಿಂದ ಟ್ಯಾಂಕ್‌ಗೆ ಸಿಗುವ ಅಂದಾಜು ಉಚಿತ ನೀರು.",
+    dosingTitle: "ನಿಖರ ನೀರಿನ ಪ್ರಮಾಣ ಹಾಗೂ ಸಮಯ",
+    dosingDesc: "ಬೇರಿಗೆ ಬೇಕಾದ ನಿಖರ ನೀರನ್ನು ಪಂಪ್ ಮಾಡಲು ಬೇಕಾಗುವ ಸಮಯ.",
+    modelHeader: "ಕೃಷಿ ನೀರಿನ ಕೊರತೆ ಮಾದರಿ (FAO-56)",
+    whyLabel: "ವೈಜ್ಞಾನಿಕ ನಿರ್ಧಾರದ ವಿವರಣೆ",
+  },
+};
+
 function App() {
   const [darkMode, setDarkMode] = useState(false);
-  
+  const [lang, setLang] = useState("en");
+  const [espIp, setEspIp] = useState("10.110.8.97");
+  const [fieldData, setFieldData] = useState(null);
+  const [deviceConnected, setDeviceConnected] = useState(false);
+  const [apiError, setApiError] = useState(null);
+  const failureCount = useRef(0);
+
+  const t = TRANSLATIONS[lang];
 
   useEffect(() => {
     document.documentElement.style.colorScheme = darkMode ? "dark" : "light";
   }, [darkMode]);
-  const [fieldData, setFieldData] = useState(null);
-const [deviceConnected, setDeviceConnected] = useState(false);
-const [apiError, setApiError] = useState(null);
-const failureCount = useRef(0);
 
-useEffect(() => {
-  console.log("ARIGATO: starting ESP32 connection...");
+  useEffect(() => {
+    let stopped = false;
 
-  let stopped = false;
+    const fetchFieldData = async () => {
+      if (fetchFieldData.running) return;
+      fetchFieldData.running = true;
 
-  const fetchFieldData = async () => {
-    // Never allow overlapping ESP32 requests
-    if (fetchFieldData.running) {
-      return;
-    }
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4000);
 
-    fetchFieldData.running = true;
-
-    const controller = new AbortController();
-
-    const timeout = setTimeout(() => {
-      controller.abort();
-    }, 6000);
-
-    try {
-      const response = await fetch(
-        "http://10.233.65.251/api/status",
-        {
+      try {
+        const response = await fetch(`http://${espIp}/api/status`, {
           method: "GET",
           cache: "no-store",
           signal: controller.signal,
+        });
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+
+        if (stopped) return;
+
+        failureCount.current = 0;
+        setFieldData(data);
+        setDeviceConnected(true);
+        setApiError(null);
+      } catch (error) {
+        if (stopped) return;
+        failureCount.current += 1;
+        setApiError(error.name === "AbortError" ? "Latency Spike" : error.message);
+        if (failureCount.current > 2) {
+          setDeviceConnected(false);
         }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+      } finally {
+        clearTimeout(timeout);
+        fetchFieldData.running = false;
       }
+    };
 
-      const data = await response.json();
+    fetchFieldData.running = false;
+    fetchFieldData();
+    const interval = setInterval(fetchFieldData, 3000);
 
-      if (stopped) return;
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+    };
+  }, [espIp]);
 
-      // Valid ESP32 response
-      failureCount.current = 0;
+  // Derived Telemetry Values
+  const soilMoisture = Math.round(fieldData?.soil?.moisture_index ?? 0);
+  const soilDryness = Math.round(fieldData?.soil?.dryness ?? 0);
+  const tankPercent = Math.round(fieldData?.reservoir?.level_percent ?? 0);
+  const tankVol = Math.round(fieldData?.reservoir?.water_ml ?? 0);
+  const cropET = Number(fieldData?.model?.crop_et_mm ?? 0).toFixed(2);
+  const netDemand = Number(fieldData?.model?.net_demand_mm ?? 0).toFixed(2);
+  const prescribedL = Number(fieldData?.model?.prescribed_litres ?? 0).toFixed(1);
+  const runDurationSec = Math.round(fieldData?.model?.run_duration_sec ?? 0);
+  const runDurationMin = (runDurationSec / 60).toFixed(1);
+  const harvestL = Math.round(fieldData?.model?.harvest_potential_l ?? 0);
+  const diseaseRisk = fieldData?.disease?.risk_level ?? "LOW";
+  const diseaseReason = fieldData?.disease?.reason ?? t.diseaseSafe;
+  const isPumpActive = fieldData?.decision?.pump_active ?? false;
 
-      setFieldData(data);
-      setDeviceConnected(true);
-      setApiError(null);
-
-      console.log("ARIGATO LIVE DATA:", data);
-
-    } catch (error) {
-      if (stopped) return;
-
-      failureCount.current += 1;
-
-      // IMPORTANT:
-      // Keep the last valid field data on screen.
-      // A temporary missed request must NOT erase the dashboard.
-
-      if (error.name === "AbortError") {
-        setApiError("Connection temporarily delayed");
-      } else {
-        setApiError(error.message);
-      }
-
-      console.warn(
-        `ARIGATO: poll missed (${failureCount.current}) — keeping last valid data`
-      );
-
-    } finally {
-      clearTimeout(timeout);
-      fetchFieldData.running = false;
-    }
-  };
-
-  fetchFieldData.running = false;
-
-  // First request immediately
-  fetchFieldData();
-
-  // Irrigation data does not require rapid polling.
-  // One request every 10 seconds is sufficient.
-  const interval = setInterval(fetchFieldData, 10000);
-
-  return () => {
-    stopped = true;
-    clearInterval(interval);
-  };
-}, []);
-const areaM2 = fieldData?.field?.area_m2 ?? 0;
-const netDemandMm = fieldData?.model?.net_demand_mm ?? 0;
-const recommendedWater = fieldData?.model?.recommended_water_l ?? 0;
-
-const theoreticalWater = netDemandMm * areaM2;
-
-const waterWithheld = Math.max(
-  theoreticalWater - recommendedWater,
-  0
-);
-
-const withholdingPercent =
-  theoreticalWater > 0
-    ? (waterWithheld / theoreticalWater) * 100
-    : 0;
   return (
     <div className={`app ${darkMode ? "dark" : ""}`}>
-
       {/* ================= NAVBAR ================= */}
-
       <header className="navbar">
         <a href="#home" className="brand">
           <div className="brand-mark">
-            <Leaf size={30} strokeWidth={2.2} />
+            <Leaf size={28} strokeWidth={2.4} />
           </div>
-
           <div className="brand-copy">
             <strong>ARIGATO</strong>
-            <span>Smart Irrigation</span>
+            <span>{t.brandSubtitle}</span>
           </div>
         </a>
 
         <nav className="nav-links">
-          <a className="active" href="#home">
-            Home
-          </a>
-
-          <a href="#dashboard">
-            Dashboard
-          </a>
-
-          <a href="#about">
-            About
-          </a>
-
-          <a href="#team">
-            Our Team
-          </a>
+          <a className="active" href="#home">{t.navHome}</a>
+          <a href="#dashboard">{t.navDashboard}</a>
+          <a href="#about">{t.navAbout}</a>
+          <a href="#team">{t.navTeam}</a>
         </nav>
 
         <div className="nav-actions">
+          {/* Vernacular Language Switcher */}
           <button
-            className="theme-button"
-            onClick={() => setDarkMode((current) => !current)}
-            aria-label="Toggle dark mode"
+            className="secondary-button"
+            style={{ minHeight: "38px", padding: "0 14px", fontSize: "12px" }}
+            onClick={() => setLang((curr) => (curr === "en" ? "kn" : "en"))}
           >
-            {darkMode ? <Sun size={19} /> : <Moon size={19} />}
+            {lang === "en" ? "ಕನ್ನಡ" : "English"}
           </button>
 
-          <button className="live-button">
-            <Wifi size={17} />
-            <span>Live Demo</span>
+          {/* ESP32 IP Config Box */}
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "6px",
+              background: "var(--surface)",
+              border: "1px solid var(--border)",
+              borderRadius: "20px",
+              padding: "4px 10px",
+            }}
+          >
+            <Settings size={14} color="var(--muted)" />
+            <input
+              type="text"
+              value={espIp}
+              onChange={(e) => setEspIp(e.target.value)}
+              placeholder="ESP32 IP"
+              style={{
+                border: "none",
+                background: "transparent",
+                color: "var(--ink)",
+                fontSize: "12px",
+                width: "95px",
+                outline: "none",
+              }}
+            />
+          </div>
+
+          <button
+            className="theme-button"
+            onClick={() => setDarkMode((curr) => !curr)}
+            aria-label="Toggle dark mode"
+          >
+            {darkMode ? <Sun size={18} /> : <Moon size={18} />}
           </button>
+
+          <a href="#dashboard" className="live-button">
+            <Wifi size={16} />
+            <span>{deviceConnected ? "LIVE NODE" : "CONNECTING"}</span>
+          </a>
         </div>
       </header>
 
       {/* ================= HERO ================= */}
-
       <main id="home" className="hero">
-
         <div className="hero-shade" />
-
         <div className="hero-glow hero-glow-one" />
         <div className="hero-glow hero-glow-two" />
 
         <section className="hero-content">
-
           <div className="hero-kicker">
             <span className="kicker-line" />
-
-            <span>
-              SENSING TODAY. SMARTER DECISIONS FOR TOMORROW.
-            </span>
+            <span>{t.heroKicker}</span>
           </div>
 
           <h1 className="hero-title">
-            Smarter Irrigation
-            <span>Healthier Farms</span>
+            {t.heroTitle1}
+            <span>{t.heroTitle2}</span>
           </h1>
 
-          <p className="hero-description">
-            A low-cost IoT intelligence system helping smallholder
-            farmers make better irrigation decisions using real-time
-            field data — so every drop of water creates more value.
-          </p>
+          <p className="hero-description">{t.heroDesc}</p>
 
           <div className="hero-actions">
-
             <a className="primary-button" href="#dashboard">
-              <BarChart3 size={19} />
-              View Live Dashboard
+              <BarChart3 size={18} />
+              {t.ctaCockpit}
               <ArrowRight size={18} />
             </a>
 
             <a className="secondary-button" href="#about">
               <span className="play-icon">
-                <Play size={13} fill="currentColor" />
+                <Play size={12} fill="currentColor" />
               </span>
-
-              How It Works
+              {t.ctaHow}
             </a>
-
           </div>
 
           <div className="benefits">
-
-            <Benefit
-              icon={<Droplets size={22} />}
-              title="Conserve"
-              subtitle="Water"
-            />
-
-            <Benefit
-              icon={<TrendingUp size={22} />}
-              title="Improve"
-              subtitle="Yield"
-            />
-
-            <Benefit
-              icon={<IndianRupee size={22} />}
-              title="Reduce"
-              subtitle="Costs"
-            />
-
-            <Benefit
-              icon={<Users size={22} />}
-              title="Support"
-              subtitle="Farmers"
-            />
-
+            <Benefit icon={<Droplets size={20} />} title={t.benefitWater} subtitle="Target Dose" />
+            <Benefit icon={<TrendingUp size={20} />} title={t.benefitYield} subtitle="MAD Threshold" />
+            <Benefit icon={<IndianRupee size={20} />} title={t.benefitCost} subtitle="Pumping Hours" />
+            <Benefit icon={<ShieldCheck size={20} />} title={t.benefitDefense} subtitle="Fungal Alerts" />
           </div>
-
         </section>
 
-        {/* ================= LIVE FIELD CARD ================= */}
-
+        {/* ================= LIVE QUICK GLANCE CARD ================= */}
         <aside className="field-card">
-
           <div className="field-card-top">
-
             <div className="field-status-title">
-              <span className="live-dot" />
-              <strong>Live Field Status</strong>
+              <span className={`live-dot ${deviceConnected ? "" : "danger"}`} />
+              <strong>Kisan Edge Node</strong>
             </div>
-
-            <span className="node-id">
-              FIELD NODE 01
-            </span>
-
+            <span className="node-id">ESP32 // FREERTOS</span>
           </div>
 
-         <SensorRow
-  icon={<Droplets size={18} />}
-  name="Weather"
-  value={
-    fieldData
-      ? fieldData.weather?.source === "LIVE"
-        ? "Live"
-        : "Fallback"
-      : "Loading..."
-  }
-  state={
-    fieldData?.weather?.source === "LIVE"
-      ? "success"
-      : "warning"
-  }
-/>
+          <SensorRow
+            icon={<Sprout size={16} />}
+            name="Soil Moisture"
+            value={deviceConnected ? `${soilMoisture}%` : "--"}
+            state={soilMoisture > 30 ? "success" : "warning"}
+          />
+          <SensorRow
+            icon={<Waves size={16} />}
+            name="Water Storage"
+            value={deviceConnected ? `${tankPercent}% (${tankVol} mL)` : "--"}
+            state={tankPercent > 20 ? "success" : "warning"}
+          />
+          <SensorRow
+            icon={<CloudRain size={16} />}
+            name="Rain Harvesting"
+            value={deviceConnected ? `+${harvestL} L Expected` : "--"}
+            state="success"
+          />
+          <SensorRow
+            icon={<AlertTriangle size={16} />}
+            name="Fungi Threat"
+            value={deviceConnected ? `${diseaseRisk} RISK` : "--"}
+            state={diseaseRisk === "HIGH" ? "warning" : "success"}
+          />
 
-<SensorRow
-  icon={<Waves size={18} />}
-  name="Tank Level"
-  value={
-    !deviceConnected
-      ? "--"
-      : fieldData?.reservoir?.sensor_ok
-      ? `${Math.round(fieldData.reservoir.level_percent)}%`
-      : "Sensor fault"
-  }
-  state={
-    !deviceConnected
-      ? "neutral"
-      : fieldData?.reservoir?.sensor_ok
-      ? fieldData.reservoir.level_percent > 20
-        ? "success"
-        : "warning"
-      : "warning"
-  }
-/>
-
-<SensorRow
-  icon={<Sprout size={18} />}
-  name="Soil Moisture"
-  value={
-    !deviceConnected
-      ? "--"
-      : fieldData?.soil?.sensor_ok
-      ? `${Math.round(fieldData.soil.moisture_index)}%`
-      : "Sensor fault"
-  }
-  state={
-    !deviceConnected
-      ? "neutral"
-      : fieldData?.soil?.sensor_ok
-      ? "success"
-      : "warning"
-  }
-/>
-
-<SensorRow
-  icon={<Wifi size={18} />}
-  name="Node Status"
-  value={deviceConnected ? "Online" : "Offline"}
-  state={deviceConnected ? "success" : "warning"}
-/>
           <div className="field-card-bottom">
-
             <span>
-  <Wifi size={14} />
-  {deviceConnected ? "ESP32 connected" : "ESP32 disconnected"}
-</span>
-
-<span className="field-time">
-  {fieldData?.system
-    ? `V${fieldData.system.version}`
-    : "Connecting..."}
-</span>
-
+              <Wifi size={13} />
+              {deviceConnected ? `IP: ${espIp}` : "Searching Edge Node..."}
+            </span>
+            <span className="field-time">
+              {isPumpActive ? "PUMP ACTIVE" : "PUMP STANDBY"}
+            </span>
           </div>
-
         </aside>
 
         <div className="impact-note">
-          <span>Small ideas.</span>
-          <strong>Big impact.</strong>
+          <span>Rooted in science.</span>
+          <strong>Built for farmers.</strong>
           <i />
         </div>
-
-        <div className="scroll-indicator">
-          <span>EXPLORE</span>
-          <div />
-        </div>
-
       </main>
 
       {/* ================= VALUE STRIP ================= */}
-
       <section className="value-strip">
-
         <ValueCard
-          icon={<Droplets size={25} />}
-          heading="Smarter Water Use"
-          text="Irrigate only when conditions require it"
+          icon={<Droplets size={24} />}
+          heading="Virtual Dosing"
+          text="Dispenses exact liters calculated by pump flow rating without a physical meter."
         />
-
         <ValueCard
-          icon={<TrendingUp size={25} />}
-          heading="Better Decisions"
-          text="Convert field readings into clear actions"
+          icon={<ShieldCheck size={24} />}
+          heading="Fungal Disease Radar"
+          text="Correlates relative humidity and incubation temperature to stop Early Blight."
         />
-
         <ValueCard
-          icon={<IndianRupee size={25} />}
-          heading="Lower Waste"
-          text="Reduce unnecessary pumping and water use"
+          icon={<CloudRain size={24} />}
+          heading="Rain Harvesting Math"
+          text="Predicts free rooftop rainwater replenishment before clouds even precipitate."
         />
-
         <ValueCard
-          icon={<ShieldCheck size={25} />}
-          heading="Explainable"
-          text="Show farmers why each action is recommended"
+          icon={<Wifi size={24} />}
+          heading="Offline SoftAP Mesh"
+          text="Auto-spawns local field hotspot (192.168.4.1) when rural SIM or home router drops."
         />
-
       </section>
 
-      {/* ================= MINI PRODUCT INTRO ================= */}
-
-      <section id="about" className="product-intro">
-
-        <div className="section-label">
-          <span />
-          THE IDEA
-        </div>
-
-        <div className="intro-grid">
-
-          <div className="intro-heading">
-
+      {/* ================= REVOLUTIONARY COCKPIT DASHBOARD ================= */}
+      <section id="dashboard" className="live-dashboard">
+        <div className="dashboard-heading">
+          <div>
+            <div className="section-label">
+              <span />
+              {t.cockpitSub}
+            </div>
             <h2>
-              From field signals
-              <span>to useful decisions.</span>
+              {t.cockpitHeading}
             </h2>
-
           </div>
 
-          <div className="intro-copy">
+          <div className={`connection-pill ${deviceConnected ? "connected" : "disconnected"}`}>
+            <span className="live-dot" />
+            {deviceConnected ? "FIELD NODE TELEMETRY ACTIVE" : "NODE UNREACHABLE"}
+          </div>
+        </div>
 
-            <p>
-              Arigato combines a lightweight field node with an
-              intelligent software layer. Instead of adding hardware
-              for every possible measurement, the system focuses on
-              useful signals and turns them into practical irrigation
-              guidance.
-            </p>
+        {!deviceConnected || !fieldData ? (
+          <div className="dashboard-offline">
+            <Wifi size={32} />
+            <div>
+              <strong>Edge Controller Offline or Connecting</strong>
+              <span>
+                Attempting handshake with ESP32 at http://{espIp}/api/status. Ensure your laptop or phone is on the same WiFi or connected to hotspot 'Arigato-Farmer'.
+              </span>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* MAIN ACTION BANNER */}
+            <div className="intelligence-decision">
+              <div className="decision-symbol">
+                {isPumpActive ? <Flame size={32} color="#16b760" /> : <Leaf size={32} />}
+              </div>
 
-            <div className="intro-points">
+              <div className="decision-copy">
+                <span>{t.decisionLabel}</span>
+                <h3>{fieldData.decision?.action ?? "ANALYSING"}</h3>
+                <p>{fieldData.decision?.reason ?? "Processing agro-climatic balance..."}</p>
+              </div>
 
-              <MiniPoint
-                icon={<Gauge size={19} />}
-                title="Sense"
-                text="Capture field conditions"
-              />
-
-              <MiniPoint
-                icon={<Wifi size={19} />}
-                title="Connect"
-                text="Transmit live readings"
-              />
-
-              <MiniPoint
-                icon={<Leaf size={19} />}
-                title="Decide"
-                text="Recommend the next action"
-              />
-
+              <div className="decision-meta">
+                <div>
+                  <span>PUMP RELAY</span>
+                  <strong style={{ color: isPumpActive ? "#16b760" : "var(--muted)" }}>
+                    {isPumpActive ? "ENERGIZED" : "OFF"}
+                  </strong>
+                </div>
+                <div>
+                  <span>RUN DURATION</span>
+                  <strong>{runDurationMin} mins</strong>
+                </div>
+                <div>
+                  <span>CONFIDENCE</span>
+                  <strong>{fieldData.decision?.confidence_percent ?? 0}%</strong>
+                </div>
+              </div>
             </div>
 
-          </div>
+            {/* FARMER OPERATIONAL CARDS */}
+            <div className="metric-grid">
+              {/* Virtual Dosing */}
+              <div className="live-metric">
+                <div className="live-metric-icon">
+                  <Clock size={20} />
+                </div>
+                <span>{t.dosingTitle}</span>
+                <strong>{prescribedL} Litres</strong>
+                <small>Run pump for {runDurationMin} minutes ({runDurationSec}s) at rated flow</small>
+              </div>
 
-        </div>
+              {/* Rain Harvesting Catchment */}
+              <div className="live-metric">
+                <div className="live-metric-icon">
+                  <CloudRain size={20} />
+                </div>
+                <span>{t.harvestTitle}</span>
+                <strong style={{ color: "#0ea5e9" }}>+{harvestL} Litres</strong>
+                <small>From 25m² shed catchment under {fieldData.weather?.rain_forecast_mm ?? 0}mm forecast rain</small>
+              </div>
 
+              {/* Fungal Disease Warning */}
+              <div className="live-metric">
+                <div className="live-metric-icon">
+                  <AlertTriangle
+                    size={20}
+                    color={diseaseRisk === "HIGH" ? "#ef4444" : diseaseRisk === "MODERATE" ? "#f59e0b" : "#10b981"}
+                  />
+                </div>
+                <span>{t.diseaseTitle}</span>
+                <strong
+                  style={{
+                    color: diseaseRisk === "HIGH" ? "#ef4444" : diseaseRisk === "MODERATE" ? "#f59e0b" : "#10b981",
+                  }}
+                >
+                  {diseaseRisk} RISK
+                </strong>
+                <small>{diseaseReason}</small>
+              </div>
+            </div>
+
+            {/* SENSOR RAW TELEMETRY */}
+            <div className="metric-grid">
+              <LiveMetric
+                icon={<Sprout size={20} />}
+                label="Soil Moisture Index"
+                value={`${soilMoisture}%`}
+                detail={`Root Depletion: ${soilDryness}% (ADC: ${fieldData.soil?.adc_raw ?? "--"})`}
+              />
+              <LiveMetric
+                icon={<Waves size={20} />}
+                label="Storage Reservoir"
+                value={`${tankPercent}%`}
+                detail={`Available: ${tankVol} mL | Level: ${Number(fieldData.reservoir?.distance_cm ?? 0).toFixed(1)} cm`}
+              />
+              <LiveMetric
+                icon={<Droplets size={20} />}
+                label="Atmospheric ET0"
+                value={`${cropET} mm/d`}
+                detail={`Net Deficit: ${netDemand} mm after effective precipitation`}
+              />
+            </div>
+
+            {/* EXPLAINABLE REASONING PIPELINE */}
+            <div className="decision-pipeline">
+              <div className="pipeline-header">
+                <div>
+                  <Gauge size={20} />
+                  <span>{t.whyLabel}</span>
+                </div>
+                <strong>CLOSED-LOOP PIPELINE</strong>
+              </div>
+
+              <div className="pipeline-flow">
+                <DecisionFactor
+                  number="01"
+                  title="Soil Stress"
+                  value={`${soilDryness}%`}
+                  detail={soilDryness >= 50 ? "Stress > MAD Threshold" : "Rootzone Satisfied"}
+                  active={soilDryness >= 50}
+                />
+                <div className="pipeline-arrow"><ArrowRight size={16} /></div>
+
+                <DecisionFactor
+                  number="02"
+                  title="Crop ET Deficit"
+                  value={`${netDemand} mm`}
+                  detail={netDemand > 0 ? "Positive Transpiration Deficit" : "Covered by Rain"}
+                  active={Number(netDemand) > 0}
+                />
+                <div className="pipeline-arrow"><ArrowRight size={16} /></div>
+
+                <DecisionFactor
+                  number="03"
+                  title="Storage Guard"
+                  value={`${tankPercent}%`}
+                  detail={tankPercent <= 15 ? "Cavitation Lockout" : "Water Available"}
+                  active={tankPercent > 15}
+                  danger={tankPercent <= 15}
+                />
+                <div className="pipeline-arrow"><ArrowRight size={16} /></div>
+
+                <DecisionFactor
+                  number="04"
+                  title="Dose & Disease"
+                  value={`${prescribedL} L`}
+                  detail={`${diseaseRisk} Fungal Index`}
+                  active={true}
+                />
+              </div>
+
+              <div className="pipeline-result">
+                <div>
+                  <span>FINAL COMMAND</span>
+                  <strong>{fieldData.decision?.action}</strong>
+                </div>
+                <p>{fieldData.decision?.reason}</p>
+                <div className="pipeline-confidence">
+                  <span>SYSTEM RELIABILITY</span>
+                  <strong>{fieldData.decision?.confidence_percent ?? 0}%</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* FIELD PROFILE BANNER */}
+            <div className="field-profile">
+              <Leaf size={16} />
+              <span>Crop: Tomato (Solanum lycopersicum)</span>
+              <i />
+              <span>Phenological Stage: Vegetative</span>
+              <i />
+              <span>Soil: Loamy Soil (MAD 50%)</span>
+              <i />
+              <span>Canopy: 100 m²</span>
+            </div>
+          </>
+        )}
       </section>
 
-{/* ================= LIVE INTELLIGENCE DASHBOARD ================= */}
-
-<section id="dashboard" className="live-dashboard">
-
-  <div className="dashboard-heading">
-
-    <div>
-      <div className="section-label">
-        <span />
-        LIVE INTELLIGENCE
-      </div>
-
-      <h2>
-        What should the farmer
-        <span>do right now?</span>
-      </h2>
-    </div>
-
-    <div
-      className={`connection-pill ${
-        deviceConnected ? "connected" : "disconnected"
-      }`}
-    >
-      <span className="live-dot" />
-      {deviceConnected ? "FIELD NODE LIVE" : "FIELD NODE OFFLINE"}
-    </div>
-
-  </div>
-
-  {!deviceConnected || !fieldData ? (
-
-    <div className="dashboard-offline">
-      <Wifi size={32} />
-
-      <div>
-        <strong>Waiting for field node</strong>
-        <span>
-          Connect the ESP32 to begin receiving live intelligence.
-        </span>
-      </div>
-    </div>
-
-  ) : (
-
-    <>
-      {/* MAIN DECISION */}
-
-      <div className="intelligence-decision">
-
-        <div className="decision-symbol">
-          <Leaf size={32} />
-        </div>
-
-        <div className="decision-copy">
-
-          <span>CURRENT RECOMMENDATION</span>
-
-          <h3>
-            {fieldData.decision?.action ?? "ANALYSING"}
-          </h3>
-
-          <p>
-            {fieldData.decision?.reason ??
-              "Waiting for sufficient field information."}
-          </p>
-
-        </div>
-
-        <div className="decision-meta">
-
-          <div>
-            <span>PRIORITY</span>
-            <strong>
-              {fieldData.decision?.priority ?? "--"}
-            </strong>
-          </div>
-
-          <div>
-            <span>CONFIDENCE</span>
-            <strong>
-              {fieldData.decision?.confidence_percent ?? 0}%
-            </strong>
-          </div>
-
-        </div>
-
-      </div>
-
-
-      {/* LIVE SENSOR CARDS */}
-
-      <div className="metric-grid">
-
-        <LiveMetric
-          icon={<Sprout size={22} />}
-          label="Soil Moisture"
-          value={
-            fieldData.soil?.sensor_ok
-              ? `${Math.round(fieldData.soil.moisture_index)}%`
-              : "FAULT"
-          }
-          detail={
-            fieldData.soil?.sensor_ok
-              ? `Dryness ${Math.round(
-                  fieldData.soil.dryness_score
-                )}%`
-              : "Sensor unavailable"
-          }
-        />
-
-        <LiveMetric
-          icon={<Waves size={22} />}
-          label="Reservoir"
-          value={`${Math.round(
-            fieldData.reservoir?.level_percent ?? 0
-          )}%`}
-          detail={
-            fieldData.reservoir?.state ?? "Unknown"
-          }
-        />
-
-        <LiveMetric
-          icon={<Droplets size={22} />}
-          label="Weather"
-          value={fieldData.weather?.source ?? "--"}
-          detail={`${Number(
-            fieldData.weather?.effective_rain_mm ?? 0
-          ).toFixed(1)} mm effective rain`}
-        />
-
-      </div>
-
-
-      {/* MODEL OUTPUT */}
-
-      <div className="model-panel">
-
-        <div className="model-panel-title">
-          <div>
-            <Gauge size={21} />
-            <span>IRRIGATION MODEL</span>
-          </div>
-
-          <span>V{fieldData.system?.version}</span>
-        </div>
-
-        <div className="model-grid">
-
-          <ModelMetric
-            label="Crop ET"
-            value={`${Number(
-              fieldData.model?.crop_et_mm_day ?? 0
-            ).toFixed(2)} mm/day`}
-          />
-
-          <ModelMetric
-            label="Net Water Demand"
-            value={`${Number(
-              fieldData.model?.net_demand_mm ?? 0
-            ).toFixed(2)} mm`}
-          />
-
-          <ModelMetric
-            label="Recommended Water"
-            value={`${Number(
-              fieldData.model?.recommended_water_l ?? 0
-            ).toFixed(1)} L`}
-            highlight
-          />
-
-        </div>
-
-      </div>
-
-
-      {/* EXPLAINABILITY */}
-
-      <div className="explain-panel">
-
-        <div className="explain-copy">
-
-          <span className="explain-label">
-            WHY THIS DECISION?
-          </span>
-
-          <strong>
-            {fieldData.decision?.reason}
-          </strong>
-
-          <p>
-            ARIGATO combines field conditions, crop demand,
-            reservoir availability and weather information before
-            recommending irrigation.
-          </p>
-
-        </div>
-
-        <div
-          className={`automation-state ${
-            fieldData.decision?.automation_ready
-              ? "ready"
-              : "locked"
-          }`}
-        >
-          <ShieldCheck size={24} />
-
-          <div>
-            <span>AUTOMATION</span>
-
-            <strong>
-              {fieldData.decision?.automation_ready
-                ? "READY"
-                : "LOCKED"}
-            </strong>
-          </div>
-
-        </div>
-
-      </div>
-
-{/* EXPLAINABLE DECISION PIPELINE */}
-
-<div className="decision-pipeline">
-
-  <div className="pipeline-header">
-    <div>
-      <Gauge size={21} />
-      <span>DECISION BREAKDOWN</span>
-    </div>
-
-    <strong>LIVE MODEL TRACE</strong>
-  </div>
-
-  <div className="pipeline-flow">
-
-    <DecisionFactor
-      number="01"
-      title="Soil Stress"
-      value={`${Math.round(
-        fieldData.soil?.dryness_score ?? 0
-      )}%`}
-      detail={
-        (fieldData.soil?.dryness_score ?? 0) >= 70
-          ? "High irrigation pressure"
-          : (fieldData.soil?.dryness_score ?? 0) >= 40
-          ? "Moderate irrigation pressure"
-          : "Low irrigation pressure"
-      }
-      active={(fieldData.soil?.dryness_score ?? 0) >= 40}
-    />
-
-    <div className="pipeline-arrow">
-      <ArrowRight size={18} />
-    </div>
-
-    <DecisionFactor
-      number="02"
-      title="Crop Demand"
-      value={`${Number(
-        fieldData.model?.net_demand_mm ?? 0
-      ).toFixed(2)} mm`}
-      detail={
-        (fieldData.model?.net_demand_mm ?? 0) > 0
-          ? "Crop requires water"
-          : "No current demand"
-      }
-      active={(fieldData.model?.net_demand_mm ?? 0) > 0}
-    />
-
-    <div className="pipeline-arrow">
-      <ArrowRight size={18} />
-    </div>
-
-    <DecisionFactor
-      number="03"
-      title="Water Supply"
-      value={`${Math.round(
-        fieldData.reservoir?.level_percent ?? 0
-      )}%`}
-      detail={
-        (fieldData.reservoir?.level_percent ?? 0) <= 20
-          ? "Reservoir critically low"
-          : "Water available"
-      }
-      active={(fieldData.reservoir?.level_percent ?? 0) > 20}
-      danger={(fieldData.reservoir?.level_percent ?? 0) <= 20}
-    />
-
-    <div className="pipeline-arrow">
-      <ArrowRight size={18} />
-    </div>
-
-    <DecisionFactor
-      number="04"
-      title="Weather"
-      value={`${Number(
-        fieldData.weather?.effective_rain_mm ?? 0
-      ).toFixed(1)} mm`}
-      detail={
-        (fieldData.weather?.effective_rain_mm ?? 0) > 0
-          ? "Rain reduces irrigation"
-          : fieldData.weather?.source === "LIVE"
-          ? "No effective rain"
-          : "Fallback estimate"
-      }
-      active={fieldData.weather?.source === "LIVE"}
-    />
-
-  </div>
-
-  <div className="pipeline-result">
-
-    <div>
-      <span>FINAL DECISION</span>
-
-      <strong>
-        {fieldData.decision?.action ?? "ANALYSING"}
-      </strong>
-    </div>
-
-    <p>
-      {fieldData.decision?.reason}
-    </p>
-
-    <div className="pipeline-confidence">
-      <span>MODEL CONFIDENCE</span>
-      <strong>
-        {fieldData.decision?.confidence_percent ?? 0}%
-      </strong>
-    </div>
-
-  </div>
-
-</div>
-
-{/* SYSTEM HEALTH + ANOMALY DETECTION */}
-
-<div className="health-panel">
-
-  <div className="health-header">
-    <div>
-      <Activity size={21} />
-      <span>SYSTEM HEALTH</span>
-    </div>
-
-    <strong>
-      {fieldData.decision?.confidence_percent ?? 0}% CONFIDENCE
-    </strong>
-  </div>
-
-  <div className="health-grid">
-
-    <HealthItem
-      label="Soil Sensor"
-      healthy={fieldData.soil?.sensor_ok}
-      healthyText="Healthy"
-      faultText="Sensor Fault"
-    />
-
-    <HealthItem
-      label="Reservoir Sensor"
-      healthy={fieldData.reservoir?.sensor_ok}
-      healthyText="Healthy"
-      faultText="Sensor Fault"
-    />
-
-    <HealthItem
-      label="Weather Intelligence"
-      healthy={fieldData.weather?.source === "LIVE"}
-      healthyText="Live Data"
-      faultText="Fallback Mode"
-      warning
-    />
-
-    <HealthItem
-      label="ESP32 Link"
-      healthy={deviceConnected}
-      healthyText="Connected"
-      faultText="Connection Lost"
-    />
-
-  </div>
-
-  <div className="health-message">
-
-    <ShieldCheck size={21} />
-
-    <div>
-      <span>ANOMALY MONITOR</span>
-
-      <strong>
-        {!fieldData.soil?.sensor_ok
-          ? "Soil sensor requires attention"
-          : !fieldData.reservoir?.sensor_ok
-          ? "Reservoir sensor requires attention"
-          : fieldData.weather?.source !== "LIVE"
-          ? "Weather API unavailable — fallback model active"
-          : "All monitored systems operating normally"}
-      </strong>
-    </div>
-
-  </div>
-
-</div>
-
-
-      {/* FIELD PROFILE */}
-
-      <div className="field-profile">
-
-        <Leaf size={17} />
-
-        <span>{fieldData.field?.crop}</span>
-
-        <i />
-
-        <span>{fieldData.field?.growth_stage}</span>
-
-        <i />
-
-        <span>{fieldData.field?.soil_type} Soil</span>
-
-        <i />
-
-        <span>{fieldData.field?.area_m2} m²</span>
-
-      </div>
-
-    </>
-
-  )}
-
-</section>
-{/* WATER INTELLIGENCE */}
-<section className="water-intelligence">
-
-  <div className="water-heading">
-    <div>
-      <span className="section-kicker">WATER INTELLIGENCE</span>
-      <h3>
-        Every litre has a <span>reason.</span>
-      </h3>
-    </div>
-
-    <div className="water-model-badge">
-      LIVE CALCULATION
-    </div>
-  </div>
-
-  <div className="water-metrics">
-
-    <div className="water-metric">
-      <span className="metric-number">
-        {theoreticalWater.toFixed(1)}
-        <small> L</small>
-      </span>
-
-      <strong>Crop Requirement</strong>
-      <p>
-        Water theoretically required from current crop demand.
-      </p>
-    </div>
-
-    <div className="metric-divider" />
-
-    <div className="water-metric">
-      <span className="metric-number green">
-        {recommendedWater.toFixed(1)}
-        <small> L</small>
-      </span>
-
-      <strong>Recommended Now</strong>
-      <p>
-        Water ARIGATO currently recommends applying.
-      </p>
-    </div>
-
-    <div className="metric-divider" />
-
-    <div className="water-metric">
-      <span className="metric-number amber">
-        {waterWithheld.toFixed(1)}
-        <small> L</small>
-      </span>
-
-      <strong>Currently Withheld</strong>
-      <p>
-        Water intentionally not prescribed under current conditions.
-      </p>
-    </div>
-
-  </div>
-
-  <div className="water-reason">
-
-    <div className="reason-top">
-      <span>WHY IS WATER BEING WITHHELD?</span>
-
-      <strong>
-        {withholdingPercent.toFixed(0)}%
-      </strong>
-    </div>
-
-    <div className="decision-flow">
-
-      <div className="flow-node active">
-        <span>01</span>
-        <strong>Crop Demand</strong>
-        <small>{netDemandMm.toFixed(2)} mm</small>
-      </div>
-
-      <div className="flow-arrow">→</div>
-
-      <div
-        className={`flow-node ${
-          fieldData?.reservoir?.state === "CRITICAL"
-            ? "warning"
-            : "active"
-        }`}
-      >
-        <span>02</span>
-        <strong>Water Supply</strong>
-        <small>
-          {fieldData?.reservoir?.level_percent ?? 0}% available
-        </small>
-      </div>
-
-      <div className="flow-arrow">→</div>
-
-      <div className="flow-node final">
-        <span>03</span>
-        <strong>Decision</strong>
-        <small>
-          {fieldData?.decision?.action ?? "WAITING"}
-        </small>
-      </div>
-
-    </div>
-
-    <p className="water-explanation">
-      ARIGATO compares crop demand with field conditions, reservoir
-      availability and weather intelligence before prescribing water.
-      Water withheld because of a constraint is tracked separately from
-      genuine water savings.
-    </p>
-
-  </div>
-
-</section>
-      {/* ================= TEAM PLACEHOLDER ================= */}
-
+      {/* ================= TEAM ================= */}
       <section id="team" className="team-section">
-
         <div>
           <div className="section-label">
             <span />
-            BUILT FOR NIRMAAN 2026
+            NIRMAAN 2026
           </div>
-
-          <h2>Arigato Algorithms</h2>
-
+          <h2>Arigato Engineering Team</h2>
           <p>
-            Building a focused, low-cost irrigation prototype around
-            practical sensing, intelligent decisions and a clear farmer
-            experience.
+            Democratizing precision agriculture for smallholder farmers through low-cost edge intelligence, mathematical evapotranspiration models, and fail-safe automation.
           </p>
         </div>
 
         <div className="team-badge">
           <Leaf size={28} />
           <div>
-            <span>BUILD.</span>
-            <span>INNOVATE.</span>
+            <span>BUILD. INNOVATE.</span>
             <strong>IMPACT.</strong>
           </div>
         </div>
-
       </section>
 
       {/* ================= FOOTER ================= */}
-
       <footer className="footer">
-
         <div className="footer-main">
-
           <div className="footer-brand">
-
             <div className="brand footer-logo">
-
-              <div className="brand-mark">
-                <Leaf size={29} />
-              </div>
-
+              <div className="brand-mark"><Leaf size={26} /></div>
               <div className="brand-copy">
                 <strong>ARIGATO</strong>
-                <span>Smart Irrigation</span>
+                <span>Kisan Precision Platform</span>
               </div>
-
             </div>
-
-            <p>
-              A smarter, more sustainable approach to irrigation for
-              smallholder farms.
-            </p>
-
+            <p>Empowering smallholder farmers with scientific water intelligence, one drop at a time.</p>
           </div>
 
           <div className="footer-links">
-
-            <h4>Explore</h4>
-
+            <h4>Platform</h4>
             <a href="#home">Home</a>
-            <a href="#dashboard">Dashboard</a>
-            <a href="#about">About</a>
-            <a href="#team">Our Team</a>
-
+            <a href="#dashboard">Cockpit</a>
+            <a href="#about">Innovation</a>
           </div>
 
           <div className="footer-links">
-
-            <h4>Prototype</h4>
-
-            <span>ESP32 Field Node</span>
-            <span>Live Dashboard</span>
-            <span>Decision Engine</span>
-            <span>Anomaly Detection</span>
-
+            <h4>Firmware Modules</h4>
+            <span>FAO-56 Penman-Monteith</span>
+            <span>Virtual Volumetric Dosing</span>
+            <span>Pathogen Radar Engine</span>
+            <span>SoftAP Resilient Mesh</span>
           </div>
 
           <div className="footer-statement">
-
-            <Leaf size={24} />
-
-            <p>
-              Technology for a
-              <strong> greener tomorrow.</strong>
-            </p>
-
+            <Leaf size={22} />
+            <p>Technology for a <strong>greener, resilient tomorrow.</strong></p>
           </div>
-
         </div>
 
         <div className="footer-bottom">
-
-          <span>
-            © 2026 Arigato Algorithms
-          </span>
-
+          <span>© 2026 Arigato Platform. Built for Nirmaan 2026.</span>
           <div>
             <span>BMSITM</span>
             <i />
-            <span>NIRMAAN 2026</span>
+            <span>Autonomous Agri-Tech Track</span>
           </div>
-
         </div>
-
       </footer>
-
     </div>
   );
 }
 
-
+// Subcomponents
 function Benefit({ icon, title, subtitle }) {
   return (
     <div className="benefit">
-
-      <div className="benefit-icon">
-        {icon}
-      </div>
-
+      <div className="benefit-icon">{icon}</div>
       <div>
         <strong>{title}</strong>
         <span>{subtitle}</span>
       </div>
-
     </div>
   );
 }
-
 
 function SensorRow({ icon, name, value, state }) {
   return (
     <div className="sensor-row">
-
       <div className="sensor-name">
-
-        <span className="sensor-icon">
-          {icon}
-        </span>
-
+        <span className="sensor-icon">{icon}</span>
         <span>{name}</span>
-
       </div>
-
-      <strong className={`sensor-value ${state}`}>
-        {value}
-      </strong>
-
+      <strong className={`sensor-value ${state}`}>{value}</strong>
     </div>
   );
 }
-
 
 function ValueCard({ icon, heading, text }) {
   return (
     <article className="value-card">
-
-      <div className="value-icon">
-        {icon}
-      </div>
-
+      <div className="value-icon">{icon}</div>
       <div>
         <h3>{heading}</h3>
         <p>{text}</p>
       </div>
-
     </article>
-  );
-}
-
-
-function MiniPoint({ icon, title, text }) {
-  return (
-    <div className="mini-point">
-
-      <div>
-        {icon}
-      </div>
-
-      <p>
-        <strong>{title}</strong>
-        <span>{text}</span>
-      </p>
-
-    </div>
   );
 }
 
 function LiveMetric({ icon, label, value, detail }) {
   return (
     <div className="live-metric">
-
-      <div className="live-metric-icon">
-        {icon}
-      </div>
-
+      <div className="live-metric-icon">{icon}</div>
       <span>{label}</span>
-
       <strong>{value}</strong>
-
       <small>{detail}</small>
-
     </div>
   );
 }
 
-
-function ModelMetric({ label, value, highlight = false }) {
+function DecisionFactor({ number, title, value, detail, active = false, danger = false }) {
   return (
-    <div className={`model-metric ${highlight ? "highlight" : ""}`}>
-
-      <span>{label}</span>
-
-      <strong>{value}</strong>
-
-    </div>
-  );
-}
-function DecisionFactor({
-  number,
-  title,
-  value,
-  detail,
-  active = false,
-  danger = false,
-}) {
-  return (
-    <div
-      className={`decision-factor ${
-        danger ? "danger" : active ? "active" : ""
-      }`}
-    >
+    <div className={`decision-factor ${danger ? "danger" : active ? "active" : ""}`}>
       <span className="factor-number">{number}</span>
-
       <span className="factor-title">{title}</span>
-
       <strong>{value}</strong>
-
       <small>{detail}</small>
-
-      <div className="factor-indicator">
-        <i />
-      </div>
+      <div className="factor-indicator"><i /></div>
     </div>
   );
 }
-function HealthItem({
-  label,
-  healthy,
-  healthyText,
-  faultText,
-  warning = false,
-}) {
-  return (
-    <div className="health-item">
 
-      <span className="health-item-label">
-        {label}
-      </span>
-
-      <div
-        className={`health-state ${
-          healthy ? "healthy" : warning ? "caution" : "fault"
-        }`}
-      >
-        <i />
-        {healthy ? healthyText : faultText}
-      </div>
-
-    </div>
-  );
-}
 export default App;
