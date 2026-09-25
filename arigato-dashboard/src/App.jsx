@@ -21,68 +21,74 @@ import {
   CloudRain,
   Settings,
   Flame,
+  Globe,
+  Radio,
+  Sparkles,
+  Layers,
+  MapPin,
+  Maximize2,
+  HelpCircle,
+  Home,
+  User,
+  Compass,
+  Cpu,
+  Info,
+  ChevronRight,
 } from "lucide-react";
 
 import "./App.css";
 
+// KRISHI SETU Services & Components
+import { fetchLocalityWeather, LOCATION_PRESETS } from "./services/weatherService";
+import { evaluateSuitability } from "./services/recommendationEngine";
+import ModeIndicator from "./components/ModeIndicator";
+import FarmerProfile from "./components/FarmerProfile";
+import LocalityIntelligence from "./components/LocalityIntelligence";
+import CropRecommendations from "./components/CropRecommendations";
+import CropComparison from "./components/CropComparison";
+import AdditionalRevenue from "./components/AdditionalRevenue";
+import CropDetailModal from "./components/CropDetailModal";
+
 // Multilingual Dictionary (English + Kannada)
 const TRANSLATIONS = {
   en: {
-    brandSubtitle: "Smart Irrigation & Crop Defense",
-    navHome: "Home",
-    navDashboard: "Live Cockpit",
-    navAbout: "How it Works",
+    brandName: "KRISHI SETU",
+    brandSubtitle: "Smart Agronomic Platform",
+    navOverview: "Home",
+    navProfile: "Farmer & Land Profile",
+    navLocality: "Locality Intelligence",
+    navRevenue: "Revenue Opportunity",
+    navRecs: "Crop Recommendations",
+    navCompare: "Crop Comparison",
+    navCockpit: "Live Hardware Cockpit",
+    navAbout: "Architecture & How it Works",
     navTeam: "Team",
-    heroKicker: "SENSING TODAY. SMARTER DECISIONS FOR TOMORROW.",
-    heroTitle1: "Smarter Irrigation,",
-    heroTitle2: "Healthier Harvests.",
-    heroDesc:
-      "A closed-loop agronomic intelligence system engineered for smallholder farmers. Fuses underground capacitive soil stress with FAO-56 atmospheric demand, fungal pathogen defense, and rooftop rain harvesting.",
-    ctaCockpit: "View Live Cockpit",
-    ctaHow: "How it Works",
-    benefitWater: "Conserve Water",
-    benefitYield: "Maximize Yield",
-    benefitCost: "Lower Power Costs",
-    benefitDefense: "Prevent Disease",
-    cockpitHeading: "What should the farmer do right now?",
     cockpitSub: "AUTONOMOUS FIELD DIRECTIVE",
     decisionLabel: "RECOMMENDED ACTION",
     diseaseTitle: "Pathogen & Fungal Infection Risk",
     diseaseSafe: "Weather conditions unfavorable for fungal sporulation.",
     harvestTitle: "Free Rain-Catchment Potential",
-    harvestDesc: "Estimated free water yield from rooftop/shed runoff.",
     dosingTitle: "Virtual Volumetric Dosing",
-    dosingDesc: "Calculated pump run time to achieve target soil hydration.",
-    modelHeader: "AGRONOMIC HYDRAULIC DEFICIT (FAO-56)",
     whyLabel: "EXPLAINABLE AGRONOMIC REASONING",
   },
   kn: {
-    brandSubtitle: "ಸ್ಮಾರ್ಟ್ ನೀರಾವರಿ ಮತ್ತು ಬೆಳೆ ರಕ್ಷಣೆ",
-    navHome: "ಮುಖಪುಟ",
-    navDashboard: "ಲೈವ್ ಡ್ಯಾಶ್‌ಬೋರ್ಡ್",
+    brandName: "ಕೃಷಿ ಸೇತು",
+    brandSubtitle: "ಸ್ಮಾರ್ಟ್ ಕೃಷಿ ವ್ಯವಸ್ಥೆ",
+    navOverview: "ಮುಖಪುಟ",
+    navProfile: "ರೈತ ಮತ್ತು ಜಮೀನು ವಿವರ",
+    navLocality: "ವಾತಾವರಣ ಮತ್ತು ಮಣ್ಣು",
+    navRevenue: "ಹೆಚ್ಚುವರಿ ಆದಾಯ",
+    navRecs: "ಬೆಳೆ ಶಿಫಾರಸುಗಳು",
+    navCompare: "ಬೆಳೆ ಹೋಲಿಕೆ",
+    navCockpit: "ಲೈವ್ ಹಾರ್ಡ್‌ವೇರ್",
     navAbout: "ಕಾರ್ಯವಿಧಾನ",
     navTeam: "ತಂಡ",
-    heroKicker: "ಇಂದಿನ ಸಂವೇದನೆ. ನಾಳಿನ ಸ್ಮಾರ್ಟ್ ಕೃಷಿ ನಿರ್ಧಾರಗಳು.",
-    heroTitle1: "ಸ್ಮಾರ್ಟ್ ನೀರಾವರಿ,",
-    heroTitle2: "ಉತ್ತಮ ಬೆಳೆ ಇಳುವರಿ.",
-    heroDesc:
-      "ಸಣ್ಣ ರೈತರಿಗಾಗಿ ವಿನ್ಯಾಸಗೊಳಿಸಲಾದ ಸ್ವಾಯತ್ತ ಕೃಷಿ ತಂತ್ರಜ್ಞಾನ. ಮಣ್ಣಿನ ತೇವಾಂಶ, ವಾತಾವರಣದ ನೀರಿನ ಬೇಡಿಕೆ, ಶಿಲೀಂಧ್ರ ರೋಗ ಮುನ್ನೆಚ್ಚರಿಕೆ ಮತ್ತು ಮಳೆನೀರು ಸಂಗ್ರಹಣೆಯನ್ನು ಒಟ್ಟುಗೂಡಿಸುವ ಕ್ರಾಂತಿಕಾರಿ ವ್ಯವಸ್ಥೆ.",
-    ctaCockpit: "ಲೈವ್ ನಿರ್ಧಾರ ವೀಕ್ಷಿಸಿ",
-    ctaHow: "ಕಾರ್ಯವಿಧಾನ ತಿಳಿಯಿರಿ",
-    benefitWater: "ನೀರು ಉಳಿತಾಯ",
-    benefitYield: "ಹೆಚ್ಚಿನ ಇಳುವರಿ",
-    benefitCost: "ಕಡಿಮೆ ವಿದ್ಯುತ್ ವೆಚ್ಚ",
-    benefitDefense: "ರೋಗ ತಡೆಗಟ್ಟುವಿಕೆ",
-    cockpitHeading: "ರೈತರು ಈಗ ಏನು ಮಾಡಬೇಕು?",
     cockpitSub: "ಸ್ವಾಯತ್ತ ಕ್ಷೇತ್ರ ನಿರ್ಧಾರ",
     decisionLabel: "ಪ್ರಸ್ತುತ ಶಿಫಾರಸು",
     diseaseTitle: "ಬೆಳೆ ರೋಗ ಮತ್ತು ಶಿಲೀಂಧ್ರ ಅಪಾಯ",
     diseaseSafe: "ಹವಾಮಾನವು ಶಿಲೀಂಧ್ರ ಹರಡುವಿಕೆಗೆ ವಿರುದ್ಧವಾಗಿದೆ.",
     harvestTitle: "ಉಚಿತ ಮಳೆ ನೀರು ಸಂಗ್ರಹಣಾ ಸಾಮರ್ಥ್ಯ",
-    harvestDesc: "ಸೂರುಗಳಿಂದ ಟ್ಯಾಂಕ್‌ಗೆ ಸಿಗುವ ಅಂದಾಜು ಉಚಿತ ನೀರು.",
     dosingTitle: "ನಿಖರ ನೀರಿನ ಪ್ರಮಾಣ ಹಾಗೂ ಸಮಯ",
-    dosingDesc: "ಬೇರಿಗೆ ಬೇಕಾದ ನಿಖರ ನೀರನ್ನು ಪಂಪ್ ಮಾಡಲು ಬೇಕಾಗುವ ಸಮಯ.",
-    modelHeader: "ಕೃಷಿ ನೀರಿನ ಕೊರತೆ ಮಾದರಿ (FAO-56)",
     whyLabel: "ವೈಜ್ಞಾನಿಕ ನಿರ್ಧಾರದ ವಿವರಣೆ",
   },
 };
@@ -96,12 +102,43 @@ function App() {
   const [apiError, setApiError] = useState(null);
   const failureCount = useRef(0);
 
+  // Active Sidebar View Tab: "overview" | "profile" | "locality" | "revenue" | "recommendations" | "compare" | "cockpit" | "about" | "team"
+  const [activeTab, setActiveTab] = useState("overview");
+
+  // KRISHI SETU State
+  const [activeMode, setActiveMode] = useState("general"); // "general" | "personalized"
+  const [farmerInput, setFarmerInput] = useState({
+    locationPreset: "mandya",
+    customLocation: "",
+    totalLandAcres: 2.0,
+    highValueLandAcres: 0.5,
+    primaryCrop: "Paddy / Rice",
+    irrigationType: "Drip Irrigation",
+  });
+  const [localityData, setLocalityData] = useState(null);
+  const [isRefreshingWeather, setIsRefreshingWeather] = useState(false);
+  const [compareList, setCompareList] = useState(["capsicum", "strawberry"]);
+  const [selectedCropModal, setSelectedCropModal] = useState(null);
+
   const t = TRANSLATIONS[lang];
 
   useEffect(() => {
     document.documentElement.style.colorScheme = darkMode ? "dark" : "light";
   }, [darkMode]);
 
+  // Load Locality Weather API Data
+  const loadWeather = async (presetId) => {
+    setIsRefreshingWeather(true);
+    const data = await fetchLocalityWeather(presetId || farmerInput.locationPreset);
+    setLocalityData(data);
+    setIsRefreshingWeather(false);
+  };
+
+  useEffect(() => {
+    loadWeather(farmerInput.locationPreset);
+  }, [farmerInput.locationPreset]);
+
+  // ESP32 Telemetry Handshake
   useEffect(() => {
     let stopped = false;
 
@@ -151,6 +188,19 @@ function App() {
     };
   }, [espIp]);
 
+  // Evaluate Crop Suitability & Additional Revenue Impact
+  const recommendationEngineOutput = evaluateSuitability({
+    farmerInput,
+    localityData,
+    sensorData: activeMode === "personalized" && deviceConnected ? fieldData?.soil : null,
+  });
+
+  const handleToggleCompare = (cropId) => {
+    setCompareList((prev) =>
+      prev.includes(cropId) ? prev.filter((id) => id !== cropId) : [...prev, cropId]
+    );
+  };
+
   // Derived Telemetry Values
   const soilMoisture = Math.round(fieldData?.soil?.moisture_index ?? 0);
   const soilDryness = Math.round(fieldData?.soil?.dryness ?? 0);
@@ -167,504 +217,466 @@ function App() {
   const isPumpActive = fieldData?.decision?.pump_active ?? false;
 
   return (
-    <div className={`app ${darkMode ? "dark" : ""}`}>
-      {/* ================= NAVBAR ================= */}
-      <header className="navbar">
-        <a href="#home" className="brand">
+    <div className={`dashboard-layout ${darkMode ? "dark" : ""}`}>
+      {/* ================= LEFT SIDEBAR ================= */}
+      <aside className="app-sidebar">
+        <div className="sidebar-brand">
           <div className="brand-mark">
-            <Leaf size={28} strokeWidth={2.4} />
+            <Leaf size={26} strokeWidth={2.4} />
           </div>
           <div className="brand-copy">
-            <strong>ARIGATO</strong>
+            <strong>{t.brandName}</strong>
             <span>{t.brandSubtitle}</span>
           </div>
-        </a>
+        </div>
 
-        <nav className="nav-links">
-          <a className="active" href="#home">{t.navHome}</a>
-          <a href="#dashboard">{t.navDashboard}</a>
-          <a href="#about">{t.navAbout}</a>
-          <a href="#team">{t.navTeam}</a>
-        </nav>
+        <nav className="sidebar-menu">
+          <span className="menu-group-label">DASHBOARD MODULES</span>
 
-        <div className="nav-actions">
-          {/* Vernacular Language Switcher */}
           <button
-            className="secondary-button"
-            style={{ minHeight: "38px", padding: "0 14px", fontSize: "12px" }}
-            onClick={() => setLang((curr) => (curr === "en" ? "kn" : "en"))}
+            className={`menu-item ${activeTab === "overview" ? "active" : ""}`}
+            onClick={() => setActiveTab("overview")}
           >
-            {lang === "en" ? "ಕನ್ನಡ" : "English"}
+            <Home size={18} />
+            <span>{t.navOverview}</span>
           </button>
 
-          {/* ESP32 IP Config Box */}
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "6px",
-              background: "var(--surface)",
-              border: "1px solid var(--border)",
-              borderRadius: "20px",
-              padding: "4px 10px",
-            }}
+          <button
+            className={`menu-item ${activeTab === "profile" ? "active" : ""}`}
+            onClick={() => setActiveTab("profile")}
           >
-            <Settings size={14} color="var(--muted)" />
+            <User size={18} />
+            <span>{t.navProfile}</span>
+          </button>
+
+          <button
+            className={`menu-item ${activeTab === "locality" ? "active" : ""}`}
+            onClick={() => setActiveTab("locality")}
+          >
+            <Compass size={18} />
+            <span>{t.navLocality}</span>
+          </button>
+
+          <button
+            className={`menu-item ${activeTab === "revenue" ? "active" : ""}`}
+            onClick={() => setActiveTab("revenue")}
+          >
+            <TrendingUp size={18} />
+            <span>{t.navRevenue}</span>
+            <span className="pill-tag green">+GAIN</span>
+          </button>
+
+          <button
+            className={`menu-item ${activeTab === "recommendations" ? "active" : ""}`}
+            onClick={() => setActiveTab("recommendations")}
+          >
+            <Sparkles size={18} />
+            <span>{t.navRecs}</span>
+          </button>
+
+          <button
+            className={`menu-item ${activeTab === "compare" ? "active" : ""}`}
+            onClick={() => setActiveTab("compare")}
+          >
+            <Layers size={18} />
+            <span>{t.navCompare}</span>
+          </button>
+
+          <span className="menu-group-label" style={{ marginTop: "16px" }}>HARDWARE & ABOUT</span>
+
+          <button
+            className={`menu-item ${activeTab === "cockpit" ? "active" : ""}`}
+            onClick={() => setActiveTab("cockpit")}
+          >
+            <Cpu size={18} />
+            <span>{t.navCockpit}</span>
+            <span className={`pill-tag ${deviceConnected ? "live" : "standby"}`}>
+              {deviceConnected ? "LIVE" : "NODE"}
+            </span>
+          </button>
+
+          <button
+            className={`menu-item ${activeTab === "about" ? "active" : ""}`}
+            onClick={() => setActiveTab("about")}
+          >
+            <Info size={18} />
+            <span>{t.navAbout}</span>
+          </button>
+
+          <button
+            className={`menu-item ${activeTab === "team" ? "active" : ""}`}
+            onClick={() => setActiveTab("team")}
+          >
+            <Users size={18} />
+            <span>{t.navTeam}</span>
+          </button>
+        </nav>
+
+        {/* Sidebar Controls Footer */}
+        <div className="sidebar-footer">
+          <div className="sidebar-control-row">
+            {/* Language Switcher */}
+            <button
+              className="lang-toggle-btn"
+              onClick={() => setLang((curr) => (curr === "en" ? "kn" : "en"))}
+            >
+              {lang === "en" ? "ಕನ್ನಡ" : "English"}
+            </button>
+
+            {/* Dark Mode */}
+            <button
+              className="sidebar-theme-btn"
+              onClick={() => setDarkMode((curr) => !curr)}
+              aria-label="Toggle dark mode"
+            >
+              {darkMode ? <Sun size={16} /> : <Moon size={16} />}
+            </button>
+          </div>
+
+          {/* ESP32 IP Input */}
+          <div className="sidebar-ip-box">
+            <Settings size={13} color="var(--muted)" />
             <input
               type="text"
               value={espIp}
               onChange={(e) => setEspIp(e.target.value)}
               placeholder="ESP32 IP"
-              style={{
-                border: "none",
-                background: "transparent",
-                color: "var(--ink)",
-                fontSize: "12px",
-                width: "95px",
-                outline: "none",
-              }}
             />
+            <span className={`status-dot ${deviceConnected ? "online" : ""}`} />
           </div>
-
-          <button
-            className="theme-button"
-            onClick={() => setDarkMode((curr) => !curr)}
-            aria-label="Toggle dark mode"
-          >
-            {darkMode ? <Sun size={18} /> : <Moon size={18} />}
-          </button>
-
-          <a href="#dashboard" className="live-button">
-            <Wifi size={16} />
-            <span>{deviceConnected ? "LIVE NODE" : "CONNECTING"}</span>
-          </a>
         </div>
-      </header>
+      </aside>
 
-      {/* ================= HERO ================= */}
-      <main id="home" className="hero">
-        <div className="hero-shade" />
-        <div className="hero-glow hero-glow-one" />
-        <div className="hero-glow hero-glow-two" />
-
-        <section className="hero-content">
-          <div className="hero-kicker">
-            <span className="kicker-line" />
-            <span>{t.heroKicker}</span>
-          </div>
-
-          <h1 className="hero-title">
-            {t.heroTitle1}
-            <span>{t.heroTitle2}</span>
-          </h1>
-
-          <p className="hero-description">{t.heroDesc}</p>
-
-          <div className="hero-actions">
-            <a className="primary-button" href="#dashboard">
-              <BarChart3 size={18} />
-              {t.ctaCockpit}
-              <ArrowRight size={18} />
-            </a>
-
-            <a className="secondary-button" href="#about">
-              <span className="play-icon">
-                <Play size={12} fill="currentColor" />
-              </span>
-              {t.ctaHow}
-            </a>
-          </div>
-
-          <div className="benefits">
-            <Benefit icon={<Droplets size={20} />} title={t.benefitWater} subtitle="Target Dose" />
-            <Benefit icon={<TrendingUp size={20} />} title={t.benefitYield} subtitle="MAD Threshold" />
-            <Benefit icon={<IndianRupee size={20} />} title={t.benefitCost} subtitle="Pumping Hours" />
-            <Benefit icon={<ShieldCheck size={20} />} title={t.benefitDefense} subtitle="Fungal Alerts" />
-          </div>
-        </section>
-
-        {/* ================= LIVE QUICK GLANCE CARD ================= */}
-        <aside className="field-card">
-          <div className="field-card-top">
-            <div className="field-status-title">
-              <span className={`live-dot ${deviceConnected ? "" : "danger"}`} />
-              <strong>Kisan Edge Node</strong>
-            </div>
-            <span className="node-id">ESP32 // FREERTOS</span>
-          </div>
-
-          <SensorRow
-            icon={<Sprout size={16} />}
-            name="Soil Moisture"
-            value={deviceConnected ? `${soilMoisture}%` : "--"}
-            state={soilMoisture > 30 ? "success" : "warning"}
-          />
-          <SensorRow
-            icon={<Waves size={16} />}
-            name="Water Storage"
-            value={deviceConnected ? `${tankPercent}% (${tankVol} mL)` : "--"}
-            state={tankPercent > 20 ? "success" : "warning"}
-          />
-          <SensorRow
-            icon={<CloudRain size={16} />}
-            name="Rain Harvesting"
-            value={deviceConnected ? `+${harvestL} L Expected` : "--"}
-            state="success"
-          />
-          <SensorRow
-            icon={<AlertTriangle size={16} />}
-            name="Fungi Threat"
-            value={deviceConnected ? `${diseaseRisk} RISK` : "--"}
-            state={diseaseRisk === "HIGH" ? "warning" : "success"}
-          />
-
-          <div className="field-card-bottom">
-            <span>
-              <Wifi size={13} />
-              {deviceConnected ? `IP: ${espIp}` : "Searching Edge Node..."}
-            </span>
-            <span className="field-time">
-              {isPumpActive ? "PUMP ACTIVE" : "PUMP STANDBY"}
-            </span>
-          </div>
-        </aside>
-
-        <div className="impact-note">
-          <span>Rooted in science.</span>
-          <strong>Built for farmers.</strong>
-          <i />
-        </div>
-      </main>
-
-      {/* ================= VALUE STRIP ================= */}
-      <section className="value-strip">
-        <ValueCard
-          icon={<Droplets size={24} />}
-          heading="Virtual Dosing"
-          text="Dispenses exact liters calculated by pump flow rating without a physical meter."
-        />
-        <ValueCard
-          icon={<ShieldCheck size={24} />}
-          heading="Fungal Disease Radar"
-          text="Correlates relative humidity and incubation temperature to stop Early Blight."
-        />
-        <ValueCard
-          icon={<CloudRain size={24} />}
-          heading="Rain Harvesting Math"
-          text="Predicts free rooftop rainwater replenishment before clouds even precipitate."
-        />
-        <ValueCard
-          icon={<Wifi size={24} />}
-          heading="Offline SoftAP Mesh"
-          text="Auto-spawns local field hotspot (192.168.4.1) when rural SIM or home router drops."
-        />
-      </section>
-
-      {/* ================= REVOLUTIONARY COCKPIT DASHBOARD ================= */}
-      <section id="dashboard" className="live-dashboard">
-        <div className="dashboard-heading">
-          <div>
-            <div className="section-label">
-              <span />
-              {t.cockpitSub}
-            </div>
+      {/* ================= MAIN CONTENT WRAPPER ================= */}
+      <div className="app-main-wrapper">
+        {/* Top Header */}
+        <header className="app-topbar">
+          <div className="topbar-left">
             <h2>
-              {t.cockpitHeading}
+              {activeTab === "overview" && "Home"}
+              {activeTab === "profile" && "Farmer & Field Profile"}
+              {activeTab === "locality" && "Locality Intelligence"}
+              {activeTab === "revenue" && "Potential Additional Revenue"}
+              {activeTab === "recommendations" && "Crop Recommendations"}
+              {activeTab === "compare" && "Crop Comparison Matrix"}
+              {activeTab === "cockpit" && "Live Hardware Cockpit (ESP32)"}
+              {activeTab === "about" && "KRISHI SETU Architecture & Innovation"}
+              {activeTab === "team" && "Engineering Team"}
             </h2>
+            <span className="topbar-sub">KRISHI SETU Agronomic Intelligence Cockpit</span>
           </div>
 
-          <div className={`connection-pill ${deviceConnected ? "connected" : "disconnected"}`}>
-            <span className="live-dot" />
-            {deviceConnected ? "FIELD NODE TELEMETRY ACTIVE" : "NODE UNREACHABLE"}
-          </div>
-        </div>
+          <div className="topbar-right">
+            {/* Quick Mode Toggle */}
+            <div className="topbar-mode-switch">
+              <button
+                className={`topbar-mode-btn ${activeMode === "general" ? "active" : ""}`}
+                onClick={() => setActiveMode("general")}
+              >
+                <Globe size={14} /> Mode 1: API Data
+              </button>
+              <button
+                className={`topbar-mode-btn ${activeMode === "personalized" ? "active" : ""}`}
+                onClick={() => setActiveMode("personalized")}
+              >
+                <Radio size={14} /> Mode 2: Sensor Feed
+              </button>
+            </div>
 
-        {!deviceConnected || !fieldData ? (
-          <div className="dashboard-offline">
-            <Wifi size={32} />
-            <div>
-              <strong>Edge Controller Offline or Connecting</strong>
-              <span>
-                Attempting handshake with ESP32 at http://{espIp}/api/status. Ensure your laptop or phone is on the same WiFi or connected to hotspot 'Arigato-Farmer'.
-              </span>
+            <div className={`node-status-pill ${deviceConnected ? "connected" : "standby"}`}>
+              <Wifi size={14} />
+              <span>{deviceConnected ? `NODE: ${espIp}` : "API MODE ACTIVE"}</span>
             </div>
           </div>
-        ) : (
-          <>
-            {/* MAIN ACTION BANNER */}
-            <div className="intelligence-decision">
-              <div className="decision-symbol">
-                {isPumpActive ? <Flame size={32} color="#16b760" /> : <Leaf size={32} />}
+        </header>
+
+        {/* Dashboard Content Canvas */}
+        <main className="dashboard-canvas">
+          {/* ================= TAB 1: OVERVIEW / HOME (FULL TRANS-AGRI CANVAS) ================= */}
+          {(activeTab === "overview" || activeTab === "all") && (
+            <div className="tab-view-container home-screen-container">
+              {/* Full Screen Header Banner */}
+              <div className="home-hero-header">
+                <div className="welcome-text">
+                  <span className="kicker-tag">KRISHI SETU AGRONOMIC PLATFORM</span>
+                  <h1>SMARTER IRRIGATION, HEALTHIER FARM</h1>
+                  <p>
+                    A closed-loop agronomic intelligence system engineered for smallholder farmers. Fuses locality climate APIs, soil profile data, and edge sensors for high-value crop diversification & pathogen defense.
+                  </p>
+                </div>
+
+                <div className="welcome-stats">
+                  <div className="w-stat">
+                    <span>Location</span>
+                    <strong>{localityData?.locationName || "Mandya"}</strong>
+                  </div>
+                  <div className="w-stat">
+                    <span>Top Match</span>
+                    <strong style={{ color: "#16b760" }}>
+                      {recommendationEngineOutput.topRecommendation?.name} ({recommendationEngineOutput.topRecommendation?.suitabilityScore}%)
+                    </strong>
+                  </div>
+                  <div className="w-stat">
+                    <span>Additional Net Gain</span>
+                    <strong style={{ color: "#16b760" }}>
+                      +₹{recommendationEngineOutput.economics.additionalRevenue.toLocaleString("en-IN")}
+                    </strong>
+                  </div>
+                </div>
               </div>
 
-              <div className="decision-copy">
-                <span>{t.decisionLabel}</span>
-                <h3>{fieldData.decision?.action ?? "ANALYSING"}</h3>
-                <p>{fieldData.decision?.reason ?? "Processing agro-climatic balance..."}</p>
-              </div>
-
-              <div className="decision-meta">
-                <div>
-                  <span>PUMP RELAY</span>
-                  <strong style={{ color: isPumpActive ? "#16b760" : "var(--muted)" }}>
-                    {isPumpActive ? "ENERGIZED" : "OFF"}
-                  </strong>
-                </div>
-                <div>
-                  <span>RUN DURATION</span>
-                  <strong>{runDurationMin} mins</strong>
-                </div>
-                <div>
-                  <span>CONFIDENCE</span>
-                  <strong>{fieldData.decision?.confidence_percent ?? 0}%</strong>
-                </div>
-              </div>
-            </div>
-
-            {/* FARMER OPERATIONAL CARDS */}
-            <div className="metric-grid">
-              {/* Virtual Dosing */}
-              <div className="live-metric">
-                <div className="live-metric-icon">
-                  <Clock size={20} />
-                </div>
-                <span>{t.dosingTitle}</span>
-                <strong>{prescribedL} Litres</strong>
-                <small>Run pump for {runDurationMin} minutes ({runDurationSec}s) at rated flow</small>
-              </div>
-
-              {/* Rain Harvesting Catchment */}
-              <div className="live-metric">
-                <div className="live-metric-icon">
-                  <CloudRain size={20} />
-                </div>
-                <span>{t.harvestTitle}</span>
-                <strong style={{ color: "#0ea5e9" }}>+{harvestL} Litres</strong>
-                <small>From 25m² shed catchment under {fieldData.weather?.rain_forecast_mm ?? 0}mm forecast rain</small>
-              </div>
-
-              {/* Fungal Disease Warning */}
-              <div className="live-metric">
-                <div className="live-metric-icon">
-                  <AlertTriangle
-                    size={20}
-                    color={diseaseRisk === "HIGH" ? "#ef4444" : diseaseRisk === "MODERATE" ? "#f59e0b" : "#10b981"}
-                  />
-                </div>
-                <span>{t.diseaseTitle}</span>
-                <strong
-                  style={{
-                    color: diseaseRisk === "HIGH" ? "#ef4444" : diseaseRisk === "MODERATE" ? "#f59e0b" : "#10b981",
-                  }}
-                >
-                  {diseaseRisk} RISK
-                </strong>
-                <small>{diseaseReason}</small>
-              </div>
-            </div>
-
-            {/* SENSOR RAW TELEMETRY */}
-            <div className="metric-grid">
-              <LiveMetric
-                icon={<Sprout size={20} />}
-                label="Soil Moisture Index"
-                value={`${soilMoisture}%`}
-                detail={`Root Depletion: ${soilDryness}% (ADC: ${fieldData.soil?.adc_raw ?? "--"})`}
-              />
-              <LiveMetric
-                icon={<Waves size={20} />}
-                label="Storage Reservoir"
-                value={`${tankPercent}%`}
-                detail={`Available: ${tankVol} mL | Level: ${Number(fieldData.reservoir?.distance_cm ?? 0).toFixed(1)} cm`}
-              />
-              <LiveMetric
-                icon={<Droplets size={20} />}
-                label="Atmospheric ET0"
-                value={`${cropET} mm/d`}
-                detail={`Net Deficit: ${netDemand} mm after effective precipitation`}
+              {/* Mode Banner */}
+              <ModeIndicator
+                activeMode={activeMode}
+                onModeChange={setActiveMode}
+                deviceConnected={deviceConnected}
+                espIp={espIp}
               />
             </div>
+          )}
 
-            {/* EXPLAINABLE REASONING PIPELINE */}
-            <div className="decision-pipeline">
-              <div className="pipeline-header">
+          {/* ================= TAB 2: FARMER PROFILE ================= */}
+          {activeTab === "profile" && (
+            <div className="tab-view-container">
+              <FarmerProfile
+                farmerInput={farmerInput}
+                onUpdateFarmerInput={setFarmerInput}
+                onRefreshData={() => loadWeather(farmerInput.locationPreset)}
+                isRefreshing={isRefreshingWeather}
+              />
+            </div>
+          )}
+
+          {/* ================= TAB 3: LOCALITY INTELLIGENCE ================= */}
+          {activeTab === "locality" && (
+            <div className="tab-view-container">
+              <LocalityIntelligence localityData={localityData} />
+            </div>
+          )}
+
+          {/* ================= TAB 4: REVENUE OPPORTUNITY ================= */}
+          {activeTab === "revenue" && (
+            <div className="tab-view-container">
+              <AdditionalRevenue
+                economics={recommendationEngineOutput.economics}
+                topCrop={recommendationEngineOutput.topRecommendation}
+                farmerInput={farmerInput}
+                onUpdateFarmerInput={setFarmerInput}
+              />
+            </div>
+          )}
+
+          {/* ================= TAB 5: CROP RECOMMENDATIONS ================= */}
+          {activeTab === "recommendations" && (
+            <div className="tab-view-container">
+              <CropRecommendations
+                recommendations={recommendationEngineOutput.recommendations}
+                onSelectCrop={(crop) => setSelectedCropModal(crop)}
+                onSelectForCompare={handleToggleCompare}
+                compareList={compareList}
+              />
+            </div>
+          )}
+
+          {/* ================= TAB 6: CROP COMPARISON ================= */}
+          {activeTab === "compare" && (
+            <div className="tab-view-container">
+              <CropComparison
+                recommendations={recommendationEngineOutput.recommendations}
+                compareList={compareList}
+                onToggleCompare={handleToggleCompare}
+                onSelectCrop={(crop) => setSelectedCropModal(crop)}
+              />
+            </div>
+          )}
+
+          {/* ================= TAB 7: LIVE HARDWARE COCKPIT ================= */}
+          {activeTab === "cockpit" && (
+            <div className="tab-view-container">
+              <section className="live-dashboard" style={{ padding: "0" }}>
+                <div className="dashboard-heading">
+                  <div>
+                    <div className="section-label"><span />{t.cockpitSub}</div>
+                    <h2>Autonomous Field Directive & Telemetry</h2>
+                  </div>
+
+                  <div className={`connection-pill ${deviceConnected ? "connected" : "disconnected"}`}>
+                    <span className="live-dot" />
+                    {deviceConnected ? "FIELD NODE TELEMETRY ACTIVE" : "NODE UNREACHABLE"}
+                  </div>
+                </div>
+
+                {!deviceConnected || !fieldData ? (
+                  <div className="dashboard-offline">
+                    <Wifi size={32} />
+                    <div>
+                      <strong>Edge Controller Standby / Unreachable</strong>
+                      <span>
+                        Attempting handshake with ESP32 at http://{espIp}/api/status. Mode 1 (API Locality Recommendation) continues operating smoothly. Connect your hardware node to see live telemetry.
+                      </span>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <div className="intelligence-decision">
+                      <div className="decision-symbol">
+                        {isPumpActive ? <Flame size={32} color="#16b760" /> : <Leaf size={32} />}
+                      </div>
+
+                      <div className="decision-copy">
+                        <span>{t.decisionLabel}</span>
+                        <h3>{fieldData.decision?.action ?? "ANALYSING"}</h3>
+                        <p>{fieldData.decision?.reason ?? "Processing agro-climatic balance..."}</p>
+                      </div>
+
+                      <div className="decision-meta">
+                        <div>
+                          <span>PUMP RELAY</span>
+                          <strong style={{ color: isPumpActive ? "#16b760" : "var(--muted)" }}>
+                            {isPumpActive ? "ENERGIZED" : "OFF"}
+                          </strong>
+                        </div>
+                        <div>
+                          <span>RUN DURATION</span>
+                          <strong>{runDurationMin} mins</strong>
+                        </div>
+                        <div>
+                          <span>CONFIDENCE</span>
+                          <strong>{fieldData.decision?.confidence_percent ?? 0}%</strong>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="metric-grid">
+                      <div className="live-metric">
+                        <div className="live-metric-icon"><Clock size={20} /></div>
+                        <span>{t.dosingTitle}</span>
+                        <strong>{prescribedL} Litres</strong>
+                        <small>Run pump for {runDurationMin} minutes ({runDurationSec}s)</small>
+                      </div>
+
+                      <div className="live-metric">
+                        <div className="live-metric-icon"><CloudRain size={20} /></div>
+                        <span>{t.harvestTitle}</span>
+                        <strong style={{ color: "#0ea5e9" }}>+{harvestL} Litres</strong>
+                        <small>From 25m² shed catchment</small>
+                      </div>
+
+                      <div className="live-metric">
+                        <div className="live-metric-icon">
+                          <AlertTriangle
+                            size={20}
+                            color={diseaseRisk === "HIGH" ? "#ef4444" : diseaseRisk === "MODERATE" ? "#f59e0b" : "#10b981"}
+                          />
+                        </div>
+                        <span>{t.diseaseTitle}</span>
+                        <strong style={{ color: diseaseRisk === "HIGH" ? "#ef4444" : diseaseRisk === "MODERATE" ? "#f59e0b" : "#10b981" }}>
+                          {diseaseRisk} RISK
+                        </strong>
+                        <small>{diseaseReason}</small>
+                      </div>
+                    </div>
+
+                    <div className="metric-grid">
+                      <LiveMetric
+                        icon={<Sprout size={20} />}
+                        label="Soil Moisture Index"
+                        value={`${soilMoisture}%`}
+                        detail={`Root Depletion: ${soilDryness}%`}
+                      />
+                      <LiveMetric
+                        icon={<Waves size={20} />}
+                        label="Storage Reservoir"
+                        value={`${tankPercent}%`}
+                        detail={`Available: ${tankVol} mL`}
+                      />
+                      <LiveMetric
+                        icon={<Droplets size={20} />}
+                        label="Atmospheric ET0"
+                        value={`${cropET} mm/d`}
+                        detail={`Net Deficit: ${netDemand} mm`}
+                      />
+                    </div>
+                  </>
+                )}
+              </section>
+            </div>
+          )}
+
+          {/* ================= TAB 8: ARCHITECTURE & ABOUT ================= */}
+          {activeTab === "about" && (
+            <div className="tab-view-container">
+              <section className="product-intro" style={{ padding: "0" }}>
+                <div className="intro-copy">
+                  <div className="section-label"><span />KRISHI SETU INNOVATION</div>
+                  <h2>Dual-Mode Agronomic Intelligence Architecture</h2>
+                  <p>
+                    KRISHI SETU bridges the gap between locality-level climatic APIs and hyper-local edge IoT sensors. Farmers get immediate data-driven minor crop recommendations to unlock additional revenue from suitable land portions, backed by closed-loop irrigation & pathogen defense models.
+                  </p>
+                </div>
+
+                <div className="architecture-grid">
+                  <div className="architecture-mode-card mode1-card">
+                    <div className="mode-card-icon mode1-icon">
+                      <Globe size={26} color="#16b760" />
+                    </div>
+                    <div className="mode-card-body">
+                      <h3>Mode 1: API Locality Intelligence</h3>
+                      <p>
+                        Fetches real-time temperature, humidity, and rainfall forecasts from open meteorological APIs and ICAR soil databases to recommend and rank high-value crops without requiring any physical sensors.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="architecture-mode-card mode2-card">
+                    <div className="mode-card-icon mode2-icon">
+                      <Radio size={26} color="#0ea5e9" />
+                    </div>
+                    <div className="mode-card-body">
+                      <h3>Mode 2: Personalised Hardware Feed</h3>
+                      <p>
+                        Directly ingests live ESP32 edge node telemetry (soil moisture index, root depletion, micro-climate) to dynamically calibrate irrigation prescriptions and boost recommendation precision.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {/* ================= TAB 9: TEAM ================= */}
+          {activeTab === "team" && (
+            <div className="tab-view-container">
+              <section className="team-section" style={{ padding: "0" }}>
                 <div>
-                  <Gauge size={20} />
-                  <span>{t.whyLabel}</span>
+                  <div className="section-label"><span />KRISHI SETU 2026</div>
+                  <h2>Krishi Setu Engineering Team</h2>
+                  <p>
+                    Democratizing precision agriculture for smallholder farmers through low-cost edge intelligence, mathematical evapotranspiration models, and high-value crop diversification.
+                  </p>
                 </div>
-                <strong>CLOSED-LOOP PIPELINE</strong>
-              </div>
 
-              <div className="pipeline-flow">
-                <DecisionFactor
-                  number="01"
-                  title="Soil Stress"
-                  value={`${soilDryness}%`}
-                  detail={soilDryness >= 50 ? "Stress > MAD Threshold" : "Rootzone Satisfied"}
-                  active={soilDryness >= 50}
-                />
-                <div className="pipeline-arrow"><ArrowRight size={16} /></div>
-
-                <DecisionFactor
-                  number="02"
-                  title="Crop ET Deficit"
-                  value={`${netDemand} mm`}
-                  detail={netDemand > 0 ? "Positive Transpiration Deficit" : "Covered by Rain"}
-                  active={Number(netDemand) > 0}
-                />
-                <div className="pipeline-arrow"><ArrowRight size={16} /></div>
-
-                <DecisionFactor
-                  number="03"
-                  title="Storage Guard"
-                  value={`${tankPercent}%`}
-                  detail={tankPercent <= 15 ? "Cavitation Lockout" : "Water Available"}
-                  active={tankPercent > 15}
-                  danger={tankPercent <= 15}
-                />
-                <div className="pipeline-arrow"><ArrowRight size={16} /></div>
-
-                <DecisionFactor
-                  number="04"
-                  title="Dose & Disease"
-                  value={`${prescribedL} L`}
-                  detail={`${diseaseRisk} Fungal Index`}
-                  active={true}
-                />
-              </div>
-
-              <div className="pipeline-result">
-                <div>
-                  <span>FINAL COMMAND</span>
-                  <strong>{fieldData.decision?.action}</strong>
+                <div className="team-badge">
+                  <Leaf size={28} />
+                  <div>
+                    <span>BUILD. INNOVATE.</span>
+                    <strong>IMPACT.</strong>
+                  </div>
                 </div>
-                <p>{fieldData.decision?.reason}</p>
-                <div className="pipeline-confidence">
-                  <span>SYSTEM RELIABILITY</span>
-                  <strong>{fieldData.decision?.confidence_percent ?? 0}%</strong>
-                </div>
-              </div>
+              </section>
             </div>
-
-            {/* FIELD PROFILE BANNER */}
-            <div className="field-profile">
-              <Leaf size={16} />
-              <span>Crop: Tomato (Solanum lycopersicum)</span>
-              <i />
-              <span>Phenological Stage: Vegetative</span>
-              <i />
-              <span>Soil: Loamy Soil (MAD 50%)</span>
-              <i />
-              <span>Canopy: 100 m²</span>
-            </div>
-          </>
-        )}
-      </section>
-
-      {/* ================= TEAM ================= */}
-      <section id="team" className="team-section">
-        <div>
-          <div className="section-label">
-            <span />
-            NIRMAAN 2026
-          </div>
-          <h2>Arigato Engineering Team</h2>
-          <p>
-            Democratizing precision agriculture for smallholder farmers through low-cost edge intelligence, mathematical evapotranspiration models, and fail-safe automation.
-          </p>
-        </div>
-
-        <div className="team-badge">
-          <Leaf size={28} />
-          <div>
-            <span>BUILD. INNOVATE.</span>
-            <strong>IMPACT.</strong>
-          </div>
-        </div>
-      </section>
-
-      {/* ================= FOOTER ================= */}
-      <footer className="footer">
-        <div className="footer-main">
-          <div className="footer-brand">
-            <div className="brand footer-logo">
-              <div className="brand-mark"><Leaf size={26} /></div>
-              <div className="brand-copy">
-                <strong>ARIGATO</strong>
-                <span>Kisan Precision Platform</span>
-              </div>
-            </div>
-            <p>Empowering smallholder farmers with scientific water intelligence, one drop at a time.</p>
-          </div>
-
-          <div className="footer-links">
-            <h4>Platform</h4>
-            <a href="#home">Home</a>
-            <a href="#dashboard">Cockpit</a>
-            <a href="#about">Innovation</a>
-          </div>
-
-          <div className="footer-links">
-            <h4>Firmware Modules</h4>
-            <span>FAO-56 Penman-Monteith</span>
-            <span>Virtual Volumetric Dosing</span>
-            <span>Pathogen Radar Engine</span>
-            <span>SoftAP Resilient Mesh</span>
-          </div>
-
-          <div className="footer-statement">
-            <Leaf size={22} />
-            <p>Technology for a <strong>greener, resilient tomorrow.</strong></p>
-          </div>
-        </div>
-
-        <div className="footer-bottom">
-          <span>© 2026 Arigato Platform. Built for Nirmaan 2026.</span>
-          <div>
-            <span>BMSITM</span>
-            <i />
-            <span>Autonomous Agri-Tech Track</span>
-          </div>
-        </div>
-      </footer>
-    </div>
-  );
-}
-
-// Subcomponents
-function Benefit({ icon, title, subtitle }) {
-  return (
-    <div className="benefit">
-      <div className="benefit-icon">{icon}</div>
-      <div>
-        <strong>{title}</strong>
-        <span>{subtitle}</span>
+          )}
+        </main>
       </div>
-    </div>
-  );
-}
 
-function SensorRow({ icon, name, value, state }) {
-  return (
-    <div className="sensor-row">
-      <div className="sensor-name">
-        <span className="sensor-icon">{icon}</span>
-        <span>{name}</span>
-      </div>
-      <strong className={`sensor-value ${state}`}>{value}</strong>
+      {/* Detailed Crop Guidance Modal */}
+      {selectedCropModal && (
+        <CropDetailModal
+          crop={selectedCropModal}
+          onClose={() => setSelectedCropModal(null)}
+        />
+      )}
     </div>
-  );
-}
-
-function ValueCard({ icon, heading, text }) {
-  return (
-    <article className="value-card">
-      <div className="value-icon">{icon}</div>
-      <div>
-        <h3>{heading}</h3>
-        <p>{text}</p>
-      </div>
-    </article>
   );
 }
 
@@ -675,18 +687,6 @@ function LiveMetric({ icon, label, value, detail }) {
       <span>{label}</span>
       <strong>{value}</strong>
       <small>{detail}</small>
-    </div>
-  );
-}
-
-function DecisionFactor({ number, title, value, detail, active = false, danger = false }) {
-  return (
-    <div className={`decision-factor ${danger ? "danger" : active ? "active" : ""}`}>
-      <span className="factor-number">{number}</span>
-      <span className="factor-title">{title}</span>
-      <strong>{value}</strong>
-      <small>{detail}</small>
-      <div className="factor-indicator"><i /></div>
     </div>
   );
 }
