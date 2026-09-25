@@ -134,6 +134,7 @@ function App() {
   const failureCount = useRef(0);
 
   const [activeMode, setActiveMode] = useState("general");
+  const [showGateway, setShowGateway] = useState(true);
   const [isFirstVisit] = useState(() => !readLocalProfile());
   const [farmerInput, setFarmerInput] = useState(() => ({ ...DEFAULT_FARMER_INPUT, ...readLocalProfile()?.farmerInput }));
   const [compareList, setCompareList] = useState(() => readLocalProfile()?.compareList ?? DEFAULT_COMPARE);
@@ -473,15 +474,16 @@ function App() {
   };
 
   return (
-    <div className={`app ${darkMode ? "dark" : ""} ${navOpen ? "nav-open" : ""}`}>
+    <>
+      <div className={`app ${darkMode ? "dark" : ""} ${navOpen ? "nav-open" : ""}`}>
       <aside className="sidebar">
-        <div className="brand">
+        <div className="brand" onClick={() => setShowGateway(true)} title="Return to Welcome Screen" role="button" tabIndex={0}>
           <span className="brand-mark"><Leaf size={22} strokeWidth={2.2} /></span>
           <div>
             <strong>{t.brandName}</strong>
             <span>{t.brandSubtitle}</span>
           </div>
-          <button className="icon-btn sidebar-close" onClick={() => setNavOpen(false)} aria-label="Close menu">
+          <button className="icon-btn sidebar-close" onClick={(e) => { e.stopPropagation(); setNavOpen(false); }} aria-label="Close menu">
             <X size={18} />
           </button>
         </div>
@@ -639,7 +641,7 @@ function App() {
                 <User size={18} />
               </button>
               {openMenu === "account" && (
-                <div className="menu-pop right">
+                <div className="menu-pop right account-dropdown">
                   <AccountMenu session={session} syncStatus={syncStatus} onGoToProfile={() => { navigate("profile"); setOpenMenu(null); }} />
                 </div>
               )}
@@ -652,7 +654,46 @@ function App() {
 
       {selectedCrop && <CropDetailModal crop={selectedCrop} onClose={() => setSelectedCrop(null)} />}
     </div>
-  );
+
+    {showGateway && (
+      <div className="gateway-screen">
+        <div className="gateway-backdrop" />
+        <div className="gateway-top-actions">
+          <button
+            className="gateway-lang-btn"
+            onClick={() => setLang((l) => (l === "en" ? "kn" : "en"))}
+          >
+            {lang === "en" ? "ಕನ್ನಡ" : "English"}
+          </button>
+        </div>
+
+        <div className="gateway-content">
+          <div className="gateway-branding">
+            <div className="gateway-logo-pill">
+              <Leaf size={16} className="gateway-leaf-icon" />
+              <span className="gateway-pill-text">{t.brandSubtitle}</span>
+            </div>
+            <h1 className="gateway-brand-title">KRISHI SETU</h1>
+            <p className="gateway-brand-tagline">from technology to soil</p>
+          </div>
+
+          <div className="gateway-console-card">
+            <AccountMenu
+              session={session}
+              syncStatus={syncStatus}
+              onGoToProfile={() => {
+                navigate("profile");
+                setShowGateway(false);
+              }}
+              onEnterDashboard={() => setShowGateway(false)}
+              isGateway={true}
+            />
+          </div>
+        </div>
+      </div>
+    )}
+  </>
+);
 }
 
 export default App;
