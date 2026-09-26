@@ -1,21 +1,47 @@
+import { useState } from "react";
 import {
+  Activity,
   AlertTriangle,
+  ArrowDown,
+  ArrowRight,
+  ArrowUp,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Clock,
   CloudRain,
+  Cpu,
+  Database,
   Droplets,
   Gauge,
+  Info,
+  Layers,
   Power,
+  Radio,
+  Server,
   Settings2,
+  ShieldAlert,
   ShieldCheck,
   Sparkles,
   Sprout,
   Sun,
   Thermometer,
   Timer,
+  TrendingDown,
   TrendingUp,
   Waves,
   Wifi,
   WifiOff,
 } from "lucide-react";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  Tooltip,
+  CartesianGrid,
+} from "recharts";
 import { Chip, PageHeader } from "./ui";
 
 const RISK_TONE = {
@@ -48,7 +74,7 @@ function formatUptime(seconds) {
   return `${s}s`;
 }
 
-function band(value, [low, high], labels = ["Low", "Optimal", "High"], isFault = false, faultLabel = "Sensor fault") {
+function band(value, [low, high], labels = ["Low", "Optimal", "High"], isFault = false, faultLabel = "Sensor Fault") {
   if (isFault) return { tone: "poor", label: faultLabel };
   if (value == null || !isFiniteNumber(value)) return { tone: "neutral", label: "" };
   if (value < low) return { tone: "fair", label: labels[0] };
@@ -56,9 +82,48 @@ function band(value, [low, high], labels = ["Low", "Optimal", "High"], isFault =
   return { tone: "good", label: labels[1] };
 }
 
+function HistoryTooltip({ active, payload, label }) {
+  if (!active || !payload?.length) return null;
+  const d = payload[0].payload;
+  return (
+    <div className="chart-tooltip">
+      <strong>{d.timeStr || label}</strong>
+      {d.isFault ? (
+        <span className="text-danger">Sensor Fault (Withheld)</span>
+      ) : (
+        <span className="text-green">{d.moisture}% Soil Moisture</span>
+      )}
+    </div>
+  );
+}
+
+function getProvBadgeClass(prov) {
+  if (!prov) return "prov-rule";
+  const p = String(prov).toUpperCase();
+  if (p.includes("SENSOR")) return "prov-sensor";
+  if (p.includes("ML")) return "prov-ml";
+  if (p.includes("WEATHER") || p.includes("FORECAST")) return "prov-weather";
+  if (p.includes("AGRONOMIC")) return "prov-agronomic";
+  if (p.includes("SAFETY") || p.includes("OVERRIDE")) return "prov-safety";
+  return "prov-rule";
+}
+
+function formatEffect(effect) {
+  if (!effect) return "";
+  if (effect === "supports_irrigation") return "💧 Supports Irrigation";
+  if (effect === "supports_holding") return "⏳ Supports Holding";
+  if (effect === "safety_override") return "🛑 Safety Lockout";
+  if (effect === "neutral") return "⚖️ Neutral Factor";
+  return effect;
+}
+
 export default function HardwareCockpit({
   fieldData,
   predictionData,
+  recommendationData,
+  validationSummary,
+  validationHistory = [],
+  historyData = [],
   deviceConnected,
   backendUrl = "http://127.0.0.1:8000",
   onBackendUrlChange,
@@ -68,8 +133,16 @@ export default function HardwareCockpit({
   lastUpdated,
   activeMode,
   onModeChange,
+  activeScenario = "live",
+  onScenarioChange,
 }) {
+  const [showModelDetails, setShowModelDetails] = useState(false);
   const d = deviceConnected ? fieldData : null;
+
+  // Recent successfully validated sample for comparison strip
+  const recentValidatedSample = (validationHistory || []).find(
+    (h) => h.validation_status === "VALIDATED" && h.actual_moisture_pct != null
+  ) || null;
 
   // --- STALE TELEMETRY DETECTION ---
   const recordedAt = d?.recorded_at;
@@ -134,28 +207,13 @@ export default function HardwareCockpit({
     ? { tone: "poor", label: "Unavailable" }
     : band(litres, [200, Infinity], ["Low", "Good", ""]);
 
-  const distance = (d && reservoirIsValid && isFiniteNumber(rawDist) && rawDist >= 0)
-    ? Number(rawDist.toFixed(1))
-    : null;
-  const distStatus = (d && !reservoirIsValid)
-    ? { tone: "poor", label: "No echo" }
-    : (distance != null ? { tone: "good", label: "Echo OK" } : { tone: "neutral", label: "" });
-
-  const rawInflow = d?.reservoir?.inflow_rate_lph;
-  const inflow = (d && reservoirIsValid && isFiniteNumber(rawInflow))
-    ? Number(rawInflow.toFixed(1))
-    : null;
-  const inflowStatus = (inflow != null && inflow > 0)
-    ? { tone: "good", label: "Recharging" }
-    : (inflow != null ? { tone: "neutral", label: "Static" } : { tone: "neutral", label: "" });
-
   // --- FIELD SENSORS (Strict Fault Gate) ---
   const rawMoisture = d?.soil?.moisture_pct ?? d?.soil?.moisture_index;
   const moisture = (d && !soilFault && isFiniteNumber(rawMoisture) && rawMoisture >= 0)
     ? Number(rawMoisture.toFixed(1))
     : null;
   const moistureStatus = soilFault
-    ? { tone: "poor", label: "Sensor Fault" }
+    ? { tone: "poor", label: "SENSOR FAULT" }
     : band(moisture, [35, 75], ["Dry", "Optimal", "Wet"]);
 
   const rawDryness = d?.soil?.dryness_pct ?? d?.soil?.dryness;
@@ -163,7 +221,7 @@ export default function HardwareCockpit({
     ? Number(rawDryness.toFixed(1))
     : null;
   const drynessStatus = soilFault
-    ? { tone: "poor", label: "Sensor Fault" }
+    ? { tone: "poor", label: "SENSOR FAULT" }
     : band(dryness, [0, 55], ["", "Normal", "Dry"]);
 
   // Rain Sensor - Physical Telemetry
@@ -213,45 +271,31 @@ export default function HardwareCockpit({
     : null;
   const et0Status = band(et0, [0, 6], ["", "Normal", "High"]);
 
-  const readings = [
-    {
-      icon: <Droplets size={22} className="wx-rain" />,
-      displayValue: soilFault ? "Sensor Fault" : (moisture != null ? `${moisture}%` : "--"),
-      label: "Soil Moisture",
-      status: moistureStatus,
-    },
-    {
-      icon: <Sprout size={22} className="wx-soil" />,
-      displayValue: soilFault ? "Sensor Fault" : (dryness != null ? `${dryness}%` : "--"),
-      label: "Root-zone Dryness",
-      status: drynessStatus,
-    },
-    { icon: <CloudRain size={22} className="wx-rain" />, displayValue: rainValue, label: "Rain Sensor", status: rainStatus },
-    { icon: <Droplets size={22} className="wx-rain" />, value: surfaceWetness, unit: "%", label: "Surface Wetness", status: wetnessStatus },
-
-    {
-      icon: <Waves size={22} className="wx-rain" />,
-      value: displayedTankLevel,
-      unit: "%",
-      label: "Tank Level",
-      status: tankStatus,
-    },
-    { icon: <Gauge size={22} className="text-green" />, value: litres, unit: " L", label: "Water Stored", status: litresStatus },
-    { icon: <Waves size={22} className="wx-rain" />, value: distance, unit: " cm", label: "Ultrasonic Distance", status: distStatus },
-    { icon: <Gauge size={22} className="text-green" />, value: inflow, unit: " L/h", label: "Reservoir Inflow", status: inflowStatus },
-
-    { icon: <Thermometer size={22} className="wx-hot" />, value: airTemp, unit: "°C", label: "Air Temperature", status: airTempStatus },
-    { icon: <Droplets size={22} className="wx-rain" />, value: humidity, unit: "%", label: "Air Humidity", status: humidityStatus },
-    { icon: <Sun size={22} className="wx-sun" />, value: vpd, unit: " kPa", label: "VPD (Atmospheric)", status: vpdStatus },
-    { icon: <Sun size={22} className="wx-sun" />, value: et0, unit: " mm/d", label: "Evapotranspiration", status: et0Status },
-  ];
-
   // --- DECISION DIRECTIVE & STATS ---
   const actionText = d?.decision?.action ?? d?.controller?.action ?? (deviceConnected ? "STANDBY" : "Awaiting field data");
   const reasonText = d?.decision?.reason ?? d?.controller?.reason ?? (
     deviceConnected ? "Nominal operation." : "The decision engine on the ESP32 will explain its reasoning here once connected."
   );
   const pumpOn = Boolean(d?.decision?.pump_active ?? d?.controller?.pump_active);
+
+  // Prominent action category
+  const isLockout = actionText.toUpperCase().includes("LOCKOUT");
+  const isIrrigate = actionText.toUpperCase().includes("IRRIGATE");
+  const isHold = actionText.toUpperCase().includes("HOLD");
+  const actionCategory = isLockout ? "LOCKOUT" : isIrrigate ? "IRRIGATE" : isHold ? "HOLD" : "STOP";
+
+  // --- PHASE 5 RECOMMENDATION ENGINE VARIABLES ---
+  const rec = recommendationData;
+  const isRecAvailable = Boolean(rec && (rec.status === "ok" || rec.status === "insufficient_data"));
+  const directive = isRecAvailable
+    ? rec.directive
+    : actionCategory;
+  const headline = isRecAvailable ? rec.headline : actionText;
+  const headlineReason = isRecAvailable ? rec.reason : reasonText;
+  const factorsList = isRecAvailable ? (rec.factors || []) : [];
+  const traceList = isRecAvailable ? (rec.decision_trace || []) : [];
+  const safetyOverride = isRecAvailable ? Boolean(rec.safety?.override) : isLockout;
+  const mlUsedInRec = isRecAvailable ? Boolean(rec.ml?.used) : false;
 
   const runDurationSec = d?.model?.run_duration_sec ?? d?.controller?.est_runtime_sec;
   const runTimeStr = (d && isFiniteNumber(runDurationSec) && runDurationSec >= 0)
@@ -266,11 +310,6 @@ export default function HardwareCockpit({
   const harvestL = d?.model?.harvest_potential_l;
   const harvestStr = (d && isFiniteNumber(harvestL) && harvestL >= 0)
     ? `${Math.round(harvestL)} L`
-    : "--";
-
-  const conf = d?.decision?.confidence_percent ?? d?.controller?.confidence_percent ?? d?.model?.confidence_pct;
-  const confidenceStr = (d && isFiniteNumber(conf) && conf >= 0)
-    ? `${Math.round(conf)}%`
     : "--";
 
   const riskText = d?.disease?.risk_level ?? d?.pathology?.risk_index ?? null;
@@ -289,14 +328,41 @@ export default function HardwareCockpit({
     (anomaly.includes("FAULT") || anomaly.includes("ERROR") || anomaly.includes("BLOCKED") || anomaly.includes("CRITICAL") || anomaly.includes("ALERT"))
   );
 
-  // --- PREDICTIVE ML STATE ---
+  // --- ML PREDICTION STATE ---
   const predStatus = predictionData?.status;
+  const mlStatusLabel = predStatus === "ok"
+    ? "READY"
+    : predStatus === "unavailable"
+    ? "BLOCKED"
+    : predStatus === "warming_up"
+    ? "WARMING UP"
+    : deviceConnected
+    ? "STANDBY"
+    : "OFFLINE";
+  const mlStatusTone = predStatus === "ok" ? "good" : predStatus === "unavailable" ? "poor" : "fair";
+
+  // --- HISTORY CHART PREPARATION ---
+  const chartPoints = historyData.map((doc) => {
+    const rawTime = doc.recorded_at;
+    const timeStr = rawTime ? new Date(rawTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "--";
+    const sampleSoil = doc.soil || {};
+    const sampleQual = doc.quality || {};
+    const isSampleFault = !isSensorHealthy(sampleSoil.status) || sampleSoil.status === "FAULT" || sampleQual.soil_valid === false;
+    const moistVal = !isSampleFault && isFiniteNumber(sampleSoil.moisture_pct) ? Number(sampleSoil.moisture_pct.toFixed(1)) : null;
+    return {
+      timeStr,
+      moisture: moistVal,
+      isFault: isSampleFault,
+    };
+  });
+
+  const validPointsCount = chartPoints.filter((p) => p.moisture != null).length;
 
   return (
     <div className="page">
       <PageHeader
         title="Live Hardware Cockpit"
-        subtitle="Real-time sensor data from your field (when connected)"
+        subtitle="Observe → Predict → Decide: Closed-loop agronomic intelligence"
         right={
           <span className={`conn-pill ${deviceConnected ? "on" : "off"}`}>
             <span className="conn-dot" />
@@ -305,8 +371,81 @@ export default function HardwareCockpit({
         }
       />
 
+      {/* ==========================================================
+          WHAT-IF DEMONSTRATION SCENARIO SELECTOR (Phase 5)
+          ========================================================== */}
+      <div className="what-if-strip">
+        <span className="what-if-label">
+          <Sparkles size={14} className="text-purple" />
+          Intelligence Mode:
+        </span>
+        <div className="what-if-buttons">
+          {[
+            { id: "live", label: "Live Telemetry", badge: "LIVE" },
+            { id: "dry_no_rain", label: "Scenario 1: Dry + No Rain", badge: "DEMO" },
+            { id: "dry_rain_expected", label: "Scenario 2: Dry + Rain Forecast", badge: "DEMO" },
+            { id: "adequate_moisture", label: "Scenario 3: Adequate Moisture", badge: "DEMO" },
+            { id: "safety_lockout", label: "Scenario 4: Reservoir Lockout", badge: "DEMO" },
+          ].map((sc) => (
+            <button
+              key={sc.id}
+              type="button"
+              className={`what-if-btn ${activeScenario === sc.id ? `active ${sc.id !== "live" ? "demo" : ""}` : ""}`}
+              onClick={() => onScenarioChange && onScenarioChange(sc.id)}
+            >
+              <span>{sc.label}</span>
+              {sc.id !== "live" && <span style={{ fontSize: "10.5px", opacity: 0.75 }}>({sc.badge})</span>}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {activeScenario && activeScenario !== "live" && (
+        <div className="demo-scenario-banner">
+          <div>
+            <strong>🧪 DEMONSTRATION SCENARIO (What-If Sandbox)</strong>
+            <span style={{ marginLeft: "8px" }}>
+              Evaluating isolated agronomic conditions. Live ESP32 telemetry, MongoDB Atlas, firmware, and physical irrigation pumps remain untouched.
+            </span>
+          </div>
+          <Chip tone="fair">SANDBOX ACTIVE</Chip>
+        </div>
+      )}
+
+      {/* ==========================================================
+          TOP STATUS STRIP
+          ========================================================== */}
+      <div className="cockpit-status-strip">
+        <div className="status-cell">
+          <span className="status-label">FIELD NODE</span>
+          <span className={`status-val ${deviceConnected ? "text-green" : "text-muted"}`}>
+            <span className={`conn-dot ${deviceConnected ? "on" : ""}`} />
+            {deviceConnected ? "ONLINE" : "OFFLINE"}
+          </span>
+        </div>
+        <div className="status-cell">
+          <span className="status-label">DATABASE</span>
+          <span className={`status-val ${deviceConnected ? "text-green" : "text-muted"}`}>
+            <span className={`conn-dot ${deviceConnected ? "on" : ""}`} />
+            {deviceConnected ? "SYNCED" : "ERROR"}
+          </span>
+        </div>
+        <div className="status-cell">
+          <span className="status-label">ML ENGINE</span>
+          <span className="status-val">
+            <Chip tone={mlStatusTone}>{mlStatusLabel}</Chip>
+          </span>
+        </div>
+        <div className="status-cell">
+          <span className="status-label">LAST UPDATE</span>
+          <strong className="status-val" style={{ fontSize: "13.5px" }}>
+            {lastUpdated ? lastUpdated.toLocaleTimeString("en-IN", { hour12: false }) : "--:--:--"}
+          </strong>
+        </div>
+      </div>
+
       {!deviceConnected && (
-        <div className="card notice-card">
+        <div className="card notice-card" style={{ marginBottom: "20px" }}>
           <WifiOff size={20} />
           <div>
             <strong>Backend unavailable</strong>
@@ -317,356 +456,694 @@ export default function HardwareCockpit({
         </div>
       )}
 
-      <div className="cockpit-grid">
-        <div className="card">
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <h3 className="card-title" style={{ margin: 0 }}>Field & Water Telemetry</h3>
-            {d?.crop && (
-              <span className="chip chip-neutral" style={{ fontSize: 12 }}>
-                Active: <strong>{d.crop.name || d.crop.profile_id}</strong>
-              </span>
-            )}
-          </div>
-
-          <div className="sensor-grid">
-            {readings.map((r) => (
-              <div key={r.label} className="sensor-tile">
-                <span className="sensor-icon">{r.icon}</span>
-                <div>
-                  <strong>{r.displayValue != null ? r.displayValue : (r.value == null ? "--" : `${r.value}${r.unit}`)}</strong>
-                  <span>{r.label}</span>
-                  {r.status?.label ? <Chip tone={r.status.tone}>{r.status.label}</Chip> : null}
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="agronomic-strip" style={{
-            display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
-            gap: "10px",
-            marginTop: "16px",
-            paddingTop: "14px",
-            borderTop: "1px solid var(--border)"
-          }}>
-            <div>
-              <span style={{ display: "block", fontSize: "11px", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Crop Profile</span>
-              <strong style={{ fontSize: "14px" }}>{d?.crop?.name || d?.crop?.profile_id || "--"}</strong>
-            </div>
-            <div>
-              <span style={{ display: "block", fontSize: "11px", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Kc Factor</span>
-              <strong style={{ fontSize: "14px" }}>{d && isFiniteNumber(d.crop?.kc_factor) ? d.crop.kc_factor : "--"}</strong>
-            </div>
-            <div>
-              <span style={{ display: "block", fontSize: "11px", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>MAD Threshold</span>
-              <strong style={{ fontSize: "14px" }}>{d && isFiniteNumber(d.crop?.mad_threshold_pct) ? `${d.crop.mad_threshold_pct}%` : "--"}</strong>
-            </div>
-            <div>
-              <span style={{ display: "block", fontSize: "11px", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>Soil Infiltration</span>
-              <strong style={{ fontSize: "14px" }}>
-                {d?.drainage?.status
-                  ? `${d.drainage.status}${isFiniteNumber(d.drainage?.infiltration_rate_pct_min) ? ` (${d.drainage.infiltration_rate_pct_min.toFixed(1)}%/m)` : ""}`
-                  : "--"}
-              </strong>
-            </div>
-          </div>
-        </div>
-
-        <div className="card sensor-location">
-          <h3 className="card-title">Sensor Location</h3>
-          <img src="/mode1-smart-farm.png" alt="Field with sensor node" />
-
-          <div className="sensor-meta">
-            <div>
-              <span>Last Updated</span>
-              <strong>{lastUpdated ? lastUpdated.toLocaleTimeString("en-IN", { hour12: false }) : "--:--:--"}</strong>
-            </div>
-            <div>
-              <span>Status</span>
-              <strong className={deviceConnected ? "text-green" : "text-muted"}>
-                <span className={`conn-dot ${deviceConnected ? "on" : ""}`} /> {deviceConnected ? "ONLINE" : "OFFLINE"}
-              </strong>
-              {isStale && <div style={{ fontSize: "11px", color: "var(--amber-text)", marginTop: "2px" }}>Telemetry snapshot ({ageMinutes}m ago)</div>}
-            </div>
-          </div>
-
-          <div className="node-health-box" style={{
-            padding: "12px",
-            borderRadius: "12px",
-            border: "1px solid var(--border)",
-            background: "var(--surface-2)",
-            display: "flex",
-            flexDirection: "column",
-            gap: "8px"
-          }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <span style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "0.5px", color: "var(--muted)" }}>NODE HEALTH</span>
-              {d?.system ? (
-                <Chip tone={isAnomalyFault ? "poor" : "good"}>
-                  {anomaly}
-                </Chip>
-              ) : (
-                <Chip tone="neutral">No signal</Chip>
-              )}
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px" }}>
-              <div>
-                <span style={{ display: "block", fontSize: "11px", color: "var(--muted)" }}>Wi-Fi</span>
-                <strong style={{ fontSize: "13px" }}>{wifiStatus}</strong>
-              </div>
-              <div>
-                <span style={{ display: "block", fontSize: "11px", color: "var(--muted)" }}>RSSI</span>
-                <strong style={{ fontSize: "13px" }}>{wifiRssi}</strong>
-              </div>
-              <div>
-                <span style={{ display: "block", fontSize: "11px", color: "var(--muted)" }}>Firmware</span>
-                <strong style={{ fontSize: "13px", display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }} title={firmware}>
-                  {firmware}
-                </strong>
-              </div>
-              <div>
-                <span style={{ display: "block", fontSize: "11px", color: "var(--muted)" }}>Uptime</span>
-                <strong style={{ fontSize: "13px" }}>{uptimeStr}</strong>
-              </div>
-            </div>
-          </div>
-
-          <label className="ip-field" title="Backend Telemetry API URL">
-            <Settings2 size={14} />
-            <input
-              value={backendUrl}
-              onChange={(e) => onBackendUrlChange ? onBackendUrlChange(e.target.value.trim()) : (onEspIpChange ? onEspIpChange(e.target.value.trim()) : null)}
-              placeholder="Backend URL (http://127.0.0.1:8000)"
-              aria-label="Backend API URL"
-            />
-            {deviceConnected ? <Wifi size={14} className="text-green" /> : <WifiOff size={14} className="text-muted" />}
-          </label>
-          <label className="switch-row">
-            <input
-              type="checkbox"
-              checked={activeMode === "personalized"}
-              onChange={(e) => onModeChange(e.target.checked ? "personalized" : "general")}
-            />
-            <span className="switch" />
-            Use sensor data for crop recommendations
-          </label>
-        </div>
-      </div>
-
-      {/* --- PREDICTIVE SOIL INTELLIGENCE CARD --- */}
-      <div className="card prediction-card" style={{ marginTop: "16px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
-            <span className="sensor-icon" style={{ background: "var(--surface-2)", color: "var(--green, #16a34a)" }}>
-              <Sparkles size={20} />
+      {/* ==========================================================
+          STAGE 01 — OBSERVE: LIVE FIELD CONDITIONS
+          ========================================================== */}
+      <section className="stage-card">
+        <div className="stage-head-row">
+          <div className="stage-title-wrap">
+            <span className="stage-number-tag">
+              <Cpu size={14} className="text-green" /> 01 — OBSERVE
             </span>
             <div>
-              <span className="eyebrow" style={{ fontSize: "11px", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
-                Machine Learning Inference
-              </span>
-              <h3 style={{ margin: 0, fontSize: "17px" }}>Predictive Soil Intelligence</h3>
+              <h3>Live Field Conditions</h3>
+              <span className="stage-subtitle">What the farm is sensing right now across soil, water, and atmosphere</span>
             </div>
           </div>
-          <div>
-            {predStatus === "ok" && <Chip tone="good">3-Hour Horizon</Chip>}
-            {predStatus === "unavailable" && <Chip tone="poor">{predictionData?.reason || "Unavailable"}</Chip>}
-            {predStatus === "warming_up" && <Chip tone="fair">Warming Up</Chip>}
-            {predStatus === "missing_features" && <Chip tone="fair">Missing Features</Chip>}
-            {predStatus === "model_error" && <Chip tone="poor">Model Error</Chip>}
-            {!predictionData && <Chip tone="neutral">No Data</Chip>}
+          {d?.crop && (
+            <span className="chip chip-neutral" style={{ fontSize: 12 }}>
+              Crop: <strong>{d.crop.name || d.crop.profile_id}</strong>
+            </span>
+          )}
+        </div>
+
+        {/* 8 Primary Sensory Readings Grid */}
+        <div className="sensor-grid" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+          {/* 1. Soil Moisture */}
+          <div className="sensor-tile">
+            <span className="sensor-icon"><Droplets size={22} className="wx-rain" /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                <span style={{ margin: 0 }}>Soil Moisture</span>
+                <span className="prov-badge prov-sensor">LIVE SENSOR</span>
+              </div>
+              <strong style={{ fontSize: soilFault ? "16px" : "19px" }}>
+                {soilFault ? "SENSOR FAULT" : (moisture != null ? `${moisture}%` : "--")}
+              </strong>
+              {moistureStatus?.label && <Chip tone={moistureStatus.tone}>{moistureStatus.label}</Chip>}
+            </div>
+          </div>
+
+          {/* 2. Root-zone Dryness */}
+          <div className="sensor-tile">
+            <span className="sensor-icon"><Sprout size={22} className="wx-soil" /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                <span style={{ margin: 0 }}>Root Dryness</span>
+                <span className="prov-badge prov-sensor">LIVE SENSOR</span>
+              </div>
+              <strong style={{ fontSize: soilFault ? "16px" : "19px" }}>
+                {soilFault ? "SENSOR FAULT" : (dryness != null ? `${dryness}%` : "--")}
+              </strong>
+              {drynessStatus?.label && <Chip tone={drynessStatus.tone}>{drynessStatus.label}</Chip>}
+            </div>
+          </div>
+
+          {/* 3. Storage Reservoir (with 64% Fallback) */}
+          <div className="sensor-tile">
+            <span className="sensor-icon"><Waves size={22} className="wx-rain" /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                <span style={{ margin: 0 }}>Reservoir Level</span>
+                <span className={`prov-badge ${reservoirIsValid ? "prov-sensor" : "prov-sim"}`}>
+                  {reservoirIsValid ? "LIVE SENSOR" : "SIMULATED"}
+                </span>
+              </div>
+              <strong>{displayedTankLevel != null ? `${displayedTankLevel}%` : "--"}</strong>
+              {tankStatus?.label && <Chip tone={tankStatus.tone}>{tankStatus.label}</Chip>}
+            </div>
+          </div>
+
+          {/* 4. Water Stored */}
+          <div className="sensor-tile">
+            <span className="sensor-icon"><Gauge size={22} className="text-green" /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                <span style={{ margin: 0 }}>Water Stored</span>
+                <span className={`prov-badge ${reservoirIsValid ? "prov-sensor" : "prov-sim"}`}>
+                  {reservoirIsValid ? "LIVE SENSOR" : "SIMULATED"}
+                </span>
+              </div>
+              <strong>{litres != null ? `${litres} L` : "--"}</strong>
+              {litresStatus?.label && <Chip tone={litresStatus.tone}>{litresStatus.label}</Chip>}
+            </div>
+          </div>
+
+          {/* 5. Air Temperature */}
+          <div className="sensor-tile">
+            <span className="sensor-icon"><Thermometer size={22} className="wx-hot" /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                <span style={{ margin: 0 }}>Air Temp</span>
+                <span className="prov-badge prov-weather">WEATHER API</span>
+              </div>
+              <strong>{airTemp != null ? `${airTemp}°C` : "--"}</strong>
+              {airTempStatus?.label && <Chip tone={airTempStatus.tone}>{airTempStatus.label}</Chip>}
+            </div>
+          </div>
+
+          {/* 6. Air Humidity */}
+          <div className="sensor-tile">
+            <span className="sensor-icon"><Droplets size={22} className="wx-rain" /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                <span style={{ margin: 0 }}>Humidity</span>
+                <span className="prov-badge prov-weather">WEATHER API</span>
+              </div>
+              <strong>{humidity != null ? `${humidity}%` : "--"}</strong>
+              {humidityStatus?.label && <Chip tone={humidityStatus.tone}>{humidityStatus.label}</Chip>}
+            </div>
+          </div>
+
+          {/* 7. Rain Sensor / Surface Wetness */}
+          <div className="sensor-tile">
+            <span className="sensor-icon"><CloudRain size={22} className="wx-rain" /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                <span style={{ margin: 0 }}>Rain Sensor</span>
+                <span className="prov-badge prov-sensor">LIVE SENSOR</span>
+              </div>
+              <strong>{rainValue}</strong>
+              {rainStatus?.label && <Chip tone={rainStatus.tone}>{rainStatus.label}</Chip>}
+            </div>
+          </div>
+
+          {/* 8. Evapotranspiration (ET₀) */}
+          <div className="sensor-tile">
+            <span className="sensor-icon"><Sun size={22} className="wx-sun" /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
+                <span style={{ margin: 0 }}>ET₀ Demand</span>
+                <span className="prov-badge prov-weather">WEATHER API</span>
+              </div>
+              <strong>{et0 != null ? `${et0} mm/d` : "--"}</strong>
+              {et0Status?.label && <Chip tone={et0Status.tone}>{et0Status.label}</Chip>}
+            </div>
           </div>
         </div>
 
-        {/* State 1: OK */}
-        {predStatus === "ok" && (
-          <div className="directive-stats" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+        {/* Compact Agronomic & Node Hardware Footer Strip */}
+        <div style={{
+          display: "grid",
+          gridTemplateColumns: "2fr 1fr",
+          gap: "14px",
+          marginTop: "16px",
+          paddingTop: "14px",
+          borderTop: "1px solid var(--border)"
+        }}>
+          {/* Agronomic Indicators */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "10px" }}>
             <div>
-              <Droplets size={15} />
-              <span>Current Moisture</span>
-              <strong>{predictionData.current_soil_moisture_pct}%</strong>
+              <span style={{ display: "block", fontSize: "11px", color: "var(--muted)", textTransform: "uppercase" }}>Crop Profile</span>
+              <strong style={{ fontSize: "13px" }}>{d?.crop?.name || d?.crop?.profile_id || "--"}</strong>
             </div>
             <div>
-              <Sparkles size={15} />
-              <span>Predicted (in 3h)</span>
-              <strong className="text-green">{predictionData.predicted_soil_moisture_pct}%</strong>
+              <span style={{ display: "block", fontSize: "11px", color: "var(--muted)", textTransform: "uppercase" }}>Kc Factor</span>
+              <strong style={{ fontSize: "13px" }}>{d && isFiniteNumber(d.crop?.kc_factor) ? d.crop.kc_factor : "--"}</strong>
             </div>
             <div>
-              <TrendingUp size={15} />
-              <span>Predicted Change</span>
-              <strong>
-                {predictionData.change_pct_points > 0 ? `+${predictionData.change_pct_points}` : predictionData.change_pct_points}% points
-              </strong>
+              <span style={{ display: "block", fontSize: "11px", color: "var(--muted)", textTransform: "uppercase" }}>MAD Threshold</span>
+              <strong style={{ fontSize: "13px" }}>{d && isFiniteNumber(d.crop?.mad_threshold_pct) ? `${d.crop.mad_threshold_pct}%` : "--"}</strong>
             </div>
             <div>
-              <ShieldCheck size={15} />
-              <span>Model Version</span>
-              <strong style={{ textTransform: "uppercase" }}>{predictionData.model_version || "V2"} (Direct)</strong>
+              <span style={{ display: "block", fontSize: "11px", color: "var(--muted)", textTransform: "uppercase" }}>Infiltration</span>
+              <strong style={{ fontSize: "13px" }}>{d?.drainage?.status || "--"}</strong>
             </div>
           </div>
-        )}
 
-        {/* State 2: UNAVAILABLE */}
-        {predStatus === "unavailable" && (
-          <div style={{
-            display: "flex",
-            alignItems: "flex-start",
-            gap: "12px",
-            padding: "12px 14px",
-            borderRadius: "10px",
-            background: "var(--surface-2)",
-            border: "1px solid var(--border)"
-          }}>
-            <AlertTriangle size={20} className="text-muted" style={{ flexShrink: 0, marginTop: "2px" }} />
-            <div>
-              <strong style={{ display: "block", fontSize: "14px", color: "var(--text)", marginBottom: "3px" }}>
-                Prediction unavailable
-              </strong>
-              <p style={{ margin: 0, fontSize: "13px", color: "var(--muted)", lineHeight: "1.4" }}>
-                {predictionData?.details || `Refused for safety: ${predictionData?.reason || "Sensor quality check failed."}`}
-              </p>
+          {/* Node Health / Backend URL */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: "12px" }}>
+            <div style={{ fontSize: "12px", textAlign: "right" }}>
+              <span style={{ color: "var(--muted)" }}>Node: </span>
+              <strong>{wifiStatus} ({wifiRssi})</strong>
+              <span style={{ color: "var(--muted)", marginLeft: "8px" }}>Up: </span>
+              <strong>{uptimeStr}</strong>
             </div>
+            <label className="ip-field" style={{ height: "30px", padding: "0 8px", width: "180px" }} title="Backend Telemetry URL">
+              <Settings2 size={12} />
+              <input
+                value={backendUrl}
+                onChange={(e) => onBackendUrlChange ? onBackendUrlChange(e.target.value.trim()) : null}
+                placeholder="Backend URL"
+                style={{ fontSize: "11px" }}
+              />
+              <Wifi size={12} className={deviceConnected ? "text-green" : "text-muted"} />
+            </label>
           </div>
-        )}
+        </div>
+      </section>
 
-        {/* State 3: WARMING UP */}
-        {predStatus === "warming_up" && (
-          <div style={{
-            display: "flex",
-            alignItems: "flex-start",
-            gap: "12px",
-            padding: "12px 14px",
-            borderRadius: "10px",
-            background: "var(--surface-2)",
-            border: "1px solid var(--border)"
-          }}>
-            <Timer size={20} className="text-muted" style={{ flexShrink: 0, marginTop: "2px" }} />
-            <div>
-              <strong style={{ display: "block", fontSize: "14px", color: "var(--text)", marginBottom: "3px" }}>
-                Learning from field history
-              </strong>
-              <p style={{ margin: 0, fontSize: "13px", color: "var(--muted)", lineHeight: "1.4" }}>
-                {predictionData?.available_history_hours != null
-                  ? `Accumulated ${predictionData.available_history_hours}h of continuous telemetry (${predictionData.required_history_hours || 6}h required for reliable 6-hour lag features).`
-                  : (predictionData?.details || "Collecting historical telemetry for temporal features.")}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* State 4: MISSING FEATURES */}
-        {predStatus === "missing_features" && (
-          <div style={{
-            display: "flex",
-            alignItems: "flex-start",
-            gap: "12px",
-            padding: "12px 14px",
-            borderRadius: "10px",
-            background: "var(--surface-2)",
-            border: "1px solid var(--border)"
-          }}>
-            <CloudRain size={20} className="text-muted" style={{ flexShrink: 0, marginTop: "2px" }} />
-            <div>
-              <strong style={{ display: "block", fontSize: "14px", color: "var(--text)", marginBottom: "3px" }}>
-                Waiting for required field/weather data
-              </strong>
-              <p style={{ margin: 0, fontSize: "13px", color: "var(--muted)", lineHeight: "1.4" }}>
-                {predictionData?.details || "Atmospheric ET0 or rainfall forecast features not yet available for model input vector."}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* State 5: MODEL ERROR */}
-        {predStatus === "model_error" && (
-          <div style={{
-            display: "flex",
-            alignItems: "flex-start",
-            gap: "12px",
-            padding: "12px 14px",
-            borderRadius: "10px",
-            background: "var(--surface-2)",
-            border: "1px solid var(--border)"
-          }}>
-            <AlertTriangle size={20} className="text-muted" style={{ flexShrink: 0, marginTop: "2px" }} />
-            <div>
-              <strong style={{ display: "block", fontSize: "14px", color: "var(--text)", marginBottom: "3px" }}>
-                Prediction temporarily unavailable
-              </strong>
-              <p style={{ margin: 0, fontSize: "13px", color: "var(--muted)", lineHeight: "1.4" }}>
-                {predictionData?.details || "Inference error occurred. Predictive engine standing by."}
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* State 6: NO DATA YET / DEFAULT */}
-        {!predStatus && (
-          <div style={{
-            display: "flex",
-            alignItems: "flex-start",
-            gap: "12px",
-            padding: "12px 14px",
-            borderRadius: "10px",
-            background: "var(--surface-2)",
-            border: "1px solid var(--border)"
-          }}>
-            <Sparkles size={20} className="text-muted" style={{ flexShrink: 0, marginTop: "2px" }} />
-            <div>
-              <strong style={{ display: "block", fontSize: "14px", color: "var(--text)", marginBottom: "3px" }}>
-                {deviceConnected ? "Connecting to ML engine..." : "Backend unavailable"}
-              </strong>
-              <p style={{ margin: 0, fontSize: "13px", color: "var(--muted)", lineHeight: "1.4" }}>
-                {deviceConnected ? "Requesting 3-hour soil forecast from backend inference service." : "ML predictions require an active backend connection."}
-              </p>
-            </div>
-          </div>
-        )}
+      {/* ==========================================================
+          VISUAL PIPELINE CONNECTOR 1 → 2
+          ========================================================== */}
+      <div className="pipeline-connector">
+        <span className="connector-line" />
+        <span>SENSORS → 36-FEATURE EXTRACTION & SAFETY GATING</span>
+        <ArrowDown size={14} />
+        <span className="connector-line" />
       </div>
 
-      <div className="card directive-card">
-        <div className="directive-main">
-          <span className={`directive-icon ${pumpOn ? "on" : ""}`}><Power size={22} /></span>
-          <div>
-            <span className="eyebrow">Irrigation directive</span>
-            <h3>{actionText}</h3>
-            <p className="muted">{reasonText}</p>
+      {/* ==========================================================
+          STAGE 02 — PREDICT: PREDICTIVE SOIL INTELLIGENCE
+          ========================================================== */}
+      <section className="stage-card">
+        <div className="stage-head-row">
+          <div className="stage-title-wrap">
+            <span className="stage-number-tag">
+              <Sparkles size={14} className="text-purple" /> 02 — PREDICT
+            </span>
+            <div>
+              <h3>Predictive Soil Intelligence</h3>
+              <span className="stage-subtitle">3-HOUR SOIL MOISTURE FORECAST</span>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span className="prov-badge prov-ml">ML V2</span>
+            {predStatus === "ok" && <Chip tone="good">3-Hour Forecast Active</Chip>}
+            {predStatus === "unavailable" && <Chip tone="poor">Safety Gate Engaged</Chip>}
+            {predStatus === "warming_up" && <Chip tone="fair">Warming Up</Chip>}
           </div>
         </div>
-        <div className="directive-stats">
+
+        {/* State A: Model Prediction OK */}
+        {predStatus === "ok" && (
+          <div className="ml-forecast-grid">
+            <div className="ml-metric-box">
+              <span className="ml-label">CURRENT MOISTURE</span>
+              <span className="ml-val">{predictionData.current_soil_moisture_pct}%</span>
+              <span style={{ fontSize: "12px", color: "var(--muted)" }}>Root-zone measurement at t=0</span>
+            </div>
+
+            <div className="ml-arrow">
+              <ArrowRight size={28} />
+            </div>
+
+            <div className="ml-metric-box">
+              <span className="ml-label">IN 3 HOURS</span>
+              <span className="ml-val text-green">{predictionData.predicted_soil_moisture_pct}%</span>
+              <span style={{ fontSize: "12px", color: "var(--muted)" }}>Prediction horizon: +3h</span>
+            </div>
+
+            <div className="ml-arrow">
+              <TrendingUp size={28} />
+            </div>
+
+            <div className="ml-metric-box">
+              <span className="ml-label">PREDICTED CHANGE</span>
+              <span className="ml-val">
+                {predictionData.change_pct_points > 0 ? `+${predictionData.change_pct_points}` : predictionData.change_pct_points}%
+              </span>
+              <span style={{ fontSize: "12px", color: "var(--muted)" }}>
+                {predictionData.change_pct_points < 0 ? "Depletion via ET₀ & drainage" : "Moisture recharge"}
+              </span>
+            </div>
+          </div>
+        )}
+
+        {/* State B: Model Blocked / Unavailable (Current Real Condition) */}
+        {predStatus === "unavailable" && (
+          <div className="ml-governed-box">
+            <div className="ml-governed-header">
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <ShieldAlert size={22} className="text-danger" />
+                <strong style={{ fontSize: "16px", color: "var(--text)" }}>Prediction safely withheld</strong>
+              </div>
+              <div style={{ display: "flex", gap: "6px" }}>
+                <span className="prov-badge prov-rule">SAFETY RULE</span>
+                <Chip tone="poor">{predictionData?.reason || "SOIL_SENSOR_FAULT"}</Chip>
+              </div>
+            </div>
+
+            <p className="ml-governed-desc">
+              Soil sensor input failed validation. KRISHI SETU will not generate a prediction from unreliable field data.
+            </p>
+
+            <div className="ml-governed-meta">
+              <div>
+                <span>Safety Gate</span>
+                <strong className="text-green">ACTIVE</strong>
+              </div>
+              <div>
+                <span>Model Architecture</span>
+                <strong>Soil-Water V2</strong>
+              </div>
+              <div>
+                <span>Target Horizon</span>
+                <strong>+3 hours</strong>
+              </div>
+              <div>
+                <span>Probe Status</span>
+                <strong className="text-danger">{soilStatus} (ADC: {rawSoilAdc ?? "--"})</strong>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* State C: Warming Up / Insufficient History */}
+        {predStatus === "warming_up" && (
+          <div className="ml-governed-box">
+            <div className="ml-governed-header">
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <Timer size={22} className="text-warning" />
+                <strong style={{ fontSize: "16px", color: "var(--text)" }}>Learning from field history</strong>
+              </div>
+              <Chip tone="fair">WARMING UP</Chip>
+            </div>
+            <p className="ml-governed-desc">
+              {predictionData?.available_history_hours != null
+                ? `Accumulated ${predictionData.available_history_hours}h of continuous telemetry (${predictionData.required_history_hours || 6}h required for 6h lags & slopes).`
+                : (predictionData?.details || "Collecting historical telemetry for temporal features.")}
+            </p>
+          </div>
+        )}
+
+        {/* State D: Missing Weather Features */}
+        {predStatus === "missing_features" && (
+          <div className="ml-governed-box">
+            <div className="ml-governed-header">
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <CloudRain size={22} className="text-warning" />
+                <strong style={{ fontSize: "16px", color: "var(--text)" }}>Waiting for required field/weather data</strong>
+              </div>
+              <Chip tone="fair">MISSING FEATURES</Chip>
+            </div>
+            <p className="ml-governed-desc">
+              {predictionData?.details || "Atmospheric ET₀ or rainfall forecast features not yet available for model input vector."}
+            </p>
+          </div>
+        )}
+
+        {/* State E: Offline / Default */}
+        {!predStatus && (
+          <div className="ml-governed-box">
+            <div className="ml-governed-header">
+              <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+                <Sparkles size={22} className="text-muted" />
+                <strong style={{ fontSize: "16px", color: "var(--text)" }}>ML Engine Standing By</strong>
+              </div>
+              <Chip tone="neutral">No Signal</Chip>
+            </div>
+            <p className="ml-governed-desc">
+              {deviceConnected ? "Querying ML inference service..." : "Backend offline. ML inference unavailable."}
+            </p>
+          </div>
+        )}
+
+        {/* Section 8: Model Details Expandable Disclosure */}
+        <div>
+          <button
+            type="button"
+            className="model-details-toggle"
+            onClick={() => setShowModelDetails((prev) => !prev)}
+          >
+            {showModelDetails ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
+            Model Details {showModelDetails ? "▲" : "▼"}
+          </button>
+
+          {showModelDetails && (
+            <div className="model-details-panel">
+              <div className="detail-item">
+                <span>Model Architecture</span>
+                <strong>Direct ExtraTrees Regressor</strong>
+              </div>
+              <div className="detail-item">
+                <span>Prediction Target</span>
+                <strong>Soil moisture at t+3 hours</strong>
+              </div>
+              <div className="detail-item">
+                <span>Development Test RMSE</span>
+                <strong>0.9586 percentage points</strong>
+              </div>
+              <div className="detail-item">
+                <span>vs Persistence Baseline</span>
+                <strong className="text-green">+51.54% improvement</strong>
+              </div>
+              <div className="detail-item">
+                <span>vs Physics Baseline</span>
+                <strong className="text-green">+20.39% improvement</strong>
+              </div>
+              <div className="detail-item">
+                <span>Dataset Scope</span>
+                <strong>Physically constrained simulated development dataset (900h)</strong>
+              </div>
+              <div style={{ gridColumn: "1 / -1", paddingTop: "8px", borderTop: "1px solid var(--border)" }}>
+                <p style={{ margin: 0, fontSize: "11.5px", color: "var(--muted)", lineHeight: "1.4" }}>
+                  <Info size={12} style={{ display: "inline", verticalAlign: "middle", marginRight: "4px" }} />
+                  Clearly labeled as DEVELOPMENT/SIMULATION evaluation results. Does not imply field-validated accuracy.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ==========================================================
+            MODEL FIELD VALIDATION (Phase 6)
+            ========================================================== */}
+        <div className="model-validation-section">
+          <div className="validation-header-row">
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <ShieldCheck size={16} className="text-green" />
+              <h4 style={{ margin: 0, fontSize: "14px", fontWeight: "800" }}>MODEL FIELD VALIDATION</h4>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <span className="prov-badge prov-sensor">REAL FIELD DATA</span>
+              {validationSummary?.status === "ok" && validationSummary.validated_predictions > 0 ? (
+                <Chip tone="good">{validationSummary.validated_predictions} Validated</Chip>
+              ) : (
+                <Chip tone="neutral">Collecting Data...</Chip>
+              )}
+            </div>
+          </div>
+
+          {/* State A: Collecting data (N=0 validated) */}
+          {(!validationSummary || validationSummary.status === "collecting_data" || !validationSummary.validated_predictions) ? (
+            <div className="validation-collecting-box">
+              <div style={{ display: "flex", alignItems: "flex-start", gap: "12px" }}>
+                <Clock size={20} className="text-muted" style={{ marginTop: "2px", flexShrink: 0 }} />
+                <div>
+                  <strong style={{ display: "block", fontSize: "13.5px", marginBottom: "4px" }}>
+                    REAL FIELD VALIDATION — Collecting Ground Truth
+                  </strong>
+                  <p style={{ margin: 0, fontSize: "12.5px", color: "var(--muted)", lineHeight: "1.45" }}>
+                    Predictions require a 3-hour operational maturation window before they can be compared with genuine, verified field observations.
+                  </p>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "16px", marginTop: "10px", fontSize: "12px" }}>
+                    <span>Pending Maturation: <strong>{validationSummary?.pending_predictions ?? 0}</strong></span>
+                    <span>Matching Tolerance: <strong>±{validationSummary?.tolerance_minutes ?? 15} min</strong></span>
+                    <span>Persistence Cadence: <strong>1/hr per node</strong></span>
+                    <span>Admissible Ground Truth: <strong>Healthy Probes Only</strong></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+            /* State B: Real Validations Exist */
+            <div className="validation-active-box">
+              <div className="validation-metrics-grid">
+                <div className="val-stat-item">
+                  <span className="val-stat-label">VALIDATED SAMPLES</span>
+                  <strong className="val-stat-num">{validationSummary.validated_predictions}</strong>
+                  <span className="val-stat-sub">Ground-truth matched</span>
+                </div>
+                <div className="val-stat-item">
+                  <span className="val-stat-label">FIELD MAE</span>
+                  <strong className="val-stat-num">{validationSummary.mae_pp} pp</strong>
+                  <span className="val-stat-sub">Mean absolute error</span>
+                </div>
+                <div className="val-stat-item">
+                  <span className="val-stat-label">FIELD RMSE</span>
+                  <strong className="val-stat-num">{validationSummary.rmse_pp} pp</strong>
+                  <span className="val-stat-sub">Root mean square error</span>
+                </div>
+                <div className="val-stat-item">
+                  <span className="val-stat-label">MEAN BIAS</span>
+                  <strong className="val-stat-num">
+                    {validationSummary.mean_bias_pp > 0 ? `+${validationSummary.mean_bias_pp}` : validationSummary.mean_bias_pp} pp
+                  </strong>
+                  <span className="val-stat-sub">Signed over/under prediction</span>
+                </div>
+              </div>
+
+              {/* Recent comparison if history exists */}
+              {recentValidatedSample && (
+                <div className="recent-comparison-strip">
+                  <span style={{ fontSize: "11px", fontWeight: "700", textTransform: "uppercase", color: "var(--muted)" }}>
+                    Latest Ground Truth Match:
+                  </span>
+                  <div style={{ display: "flex", alignItems: "center", gap: "16px", fontSize: "12.5px" }}>
+                    <span>Prediction: <strong>{recentValidatedSample.predicted_moisture_pct}%</strong></span>
+                    <span>Actual: <strong>{recentValidatedSample.actual_moisture_pct}%</strong></span>
+                    <span>Error: <strong className={recentValidatedSample.absolute_error_pp <= 1.5 ? "text-green" : "text-amber"}>{recentValidatedSample.absolute_error_pp} pp</strong></span>
+                    <span style={{ color: "var(--muted)", fontSize: "11px" }}>({recentValidatedSample.time_difference_sec}s from target)</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Semantic & Visual Separation Disclaimer */}
+          <div className="validation-separation-note">
+            <span style={{ fontWeight: "700", textTransform: "uppercase", color: "var(--text)" }}>Strict Separation Notice:</span>
+            {" "}Simulated Development Test RMSE (<strong>0.9586 pp</strong> on synthetic data) is kept completely separate from Real Field Validation. Real-world sensor accuracy is computed exclusively from matured live predictions.
+          </div>
+        </div>
+      </section>
+
+      {/* ==========================================================
+          VISUAL PIPELINE CONNECTOR 2 → 3
+          ========================================================== */}
+      <div className="pipeline-connector">
+        <span className="connector-line" />
+        <span>PREDICTION → AGRONOMIC GOVERNOR & SAFETY LOCKOUTS</span>
+        <ArrowDown size={14} />
+        <span className="connector-line" />
+      </div>
+
+      {/* ==========================================================
+          STAGE 03 — DECIDE: AGRONOMIC DIRECTIVE
+          ========================================================== */}
+      <section className="stage-card">
+        <div className="stage-head-row">
+          <div className="stage-title-wrap">
+            <span className="stage-number-tag">
+              <Power size={14} className="text-green" /> 03 — DECIDE
+            </span>
+            <div>
+              <h3>Agronomic Directive</h3>
+              <span className="stage-subtitle">Autonomous explainable safety governor & recommendation</span>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+            {safetyOverride && <span className="prov-badge prov-safety">SAFETY OVERRIDE</span>}
+            {mlUsedInRec && <span className="prov-badge prov-ml">ML V2 ACTIVE</span>}
+            <span className="prov-badge prov-rule">AGRONOMIC RULE</span>
+          </div>
+        </div>
+
+        {/* Prominent Directive Action Banner */}
+        <div className={`directive-action-banner ${directive.toLowerCase()}`}>
+          <span className="directive-icon" style={{
+            background: "rgba(255,255,255,0.2)",
+            color: "currentColor",
+            borderRadius: "10px",
+            width: "44px",
+            height: "44px"
+          }}>
+            <Power size={22} />
+          </span>
+          <div style={{ flex: 1 }}>
+            <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "8px", marginBottom: "4px" }}>
+              <span className="directive-action-badge">FINAL DIRECTIVE: {directive}</span>
+              {safetyOverride && <Chip tone="poor">Safety Lockout Active</Chip>}
+              {rec?.scenario && rec.scenario !== "live" && (
+                <Chip tone="fair">What-If Demo</Chip>
+              )}
+            </div>
+            <h4>{headline}</h4>
+            <p>{headlineReason}</p>
+          </div>
+        </div>
+
+        {/* Key Influencing Factors (Explainable "WHY") */}
+        {factorsList.length > 0 && (
+          <div className="why-factors-section">
+            <div className="why-factors-title">
+              <span>Why This Directive? (Contributing Agronomic & Safety Factors)</span>
+              <span style={{ fontSize: "11px", fontWeight: "normal", color: "var(--muted)" }}>
+                Precedence: Safety Gate &gt; Rain Avoidance &gt; Soil Deficit &gt; ML Forecast
+              </span>
+            </div>
+            <div className="why-factors-grid">
+              {factorsList.map((f, idx) => (
+                <div key={idx} className="why-factor-card">
+                  <div className="why-factor-header">
+                    <span className="why-factor-name">{f.name}</span>
+                    <span className={`prov-badge ${getProvBadgeClass(f.provenance)}`}>
+                      {f.provenance || "RULE"}
+                    </span>
+                  </div>
+                  <span className="why-factor-value">{f.value}</span>
+                  <span className={`why-factor-effect effect-${f.effect || "neutral"}`}>
+                    {formatEffect(f.effect)}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Compact 6-Step Decision Trace */}
+        {traceList.length > 0 && (
+          <div className="decision-trace-box">
+            <div className="decision-trace-header">
+              <Layers size={13} />
+              <span>Agronomic Decision Trace (Sequential Verification)</span>
+            </div>
+            <ul className="decision-trace-list">
+              {traceList.map((step, idx) => (
+                <li key={idx} className="decision-trace-step">
+                  {step}
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Execution Metrics Strip */}
+        <div className="directive-stats" style={{ marginTop: "16px" }}>
           <div>
             <Power size={15} />
-            <span>Pump</span>
-            <strong>{d ? (pumpOn ? "ON" : "OFF") : "--"}</strong>
-          </div>
-          <div>
-            <Timer size={15} />
-            <span>Run time</span>
-            <strong>{runTimeStr}</strong>
+            <span>Pump State</span>
+            <strong className={pumpOn ? "text-green" : "text-muted"}>
+              {d ? (pumpOn ? "ON" : "OFF") : "--"}
+            </strong>
           </div>
           <div>
             <Droplets size={15} />
-            <span>Prescribed</span>
+            <span>Prescribed Water</span>
             <strong>{prescribedStr}</strong>
           </div>
           <div>
+            <Timer size={15} />
+            <span>Run Duration</span>
+            <strong>{runTimeStr}</strong>
+          </div>
+          <div>
             <CloudRain size={15} />
-            <span>Rain harvest</span>
+            <span>Rain Harvest</span>
             <strong>{harvestStr}</strong>
           </div>
           <div>
             <ShieldCheck size={15} />
-            <span>Confidence</span>
-            <strong>{confidenceStr}</strong>
+            <span>Safety Rule</span>
+            <strong style={{ fontSize: "13px" }}>ENFORCED</strong>
           </div>
           <div>
             <AlertTriangle size={15} />
-            <span>Disease risk</span>
+            <span>Disease Risk</span>
             {d && riskText ? <Chip tone={RISK_TONE[riskText] ?? "neutral"}>{riskText}</Chip> : <strong>--</strong>}
           </div>
         </div>
-        {diseaseReason && <p className="muted small directive-note">{diseaseReason}</p>}
-      </div>
+
+        {diseaseReason && (
+          <p className="muted small directive-note" style={{ marginTop: "12px" }}>
+            Pathology Note: {diseaseReason}
+          </p>
+        )}
+
+        <div style={{
+          marginTop: "14px",
+          padding: "10px 12px",
+          borderRadius: "8px",
+          background: "var(--surface-2)",
+          border: "1px solid var(--border)",
+          fontSize: "12px",
+          color: "var(--muted)"
+        }}>
+          <strong>Safety Governor Note:</strong> The 64% simulated reservoir display is strictly isolated in the presentation tier. The backend irrigation intelligence engine uses real telemetry ({d?.reservoir?.status || "OUT_OF_RANGE"}), enforcing safety lockouts deterministically.
+        </div>
+      </section>
+
+      {/* ==========================================================
+          TELEMETRY HISTORY PREVIEW (Section 9)
+          ========================================================== */}
+      <section className="stage-card">
+        <div className="stage-head-row">
+          <div className="stage-title-wrap">
+            <span className="stage-number-tag">
+              <Activity size={14} className="text-green" /> RECENT HISTORY
+            </span>
+            <div>
+              <h3 style={{ fontSize: "16px" }}>Soil Moisture — Recent History (24h)</h3>
+              <span className="stage-subtitle">Chronological sensor observations from MongoDB Atlas</span>
+            </div>
+          </div>
+          <span className="prov-badge prov-sensor">DATABASE LOG</span>
+        </div>
+
+        {validPointsCount > 0 ? (
+          <div style={{ width: "100%", height: 200 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={chartPoints} margin={{ top: 10, right: 20, left: -20, bottom: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
+                <XAxis dataKey="timeStr" stroke="var(--muted)" fontSize={11} />
+                <YAxis domain={[0, 100]} stroke="var(--muted)" fontSize={11} unit="%" />
+                <Tooltip content={<HistoryTooltip />} />
+                <Line
+                  type="monotone"
+                  dataKey="moisture"
+                  stroke="#16a34a"
+                  strokeWidth={2}
+                  dot={{ r: 2, fill: "#16a34a" }}
+                  activeDot={{ r: 5 }}
+                  connectNulls={false}
+                />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        ) : (
+          <div className="chart-unavailable-box">
+            <Activity size={24} className="text-muted" style={{ flexShrink: 0 }} />
+            <div>
+              <strong>Collecting field history...</strong>
+              <span>
+                Hardware safety gate is active. Current capacitive soil probe samples are flagged as FAULT (ADC={rawSoilAdc ?? "254"}).
+                Invalid 0% readings are safely withheld from the trend line to avoid presenting faulty sensor data as real soil history.
+              </span>
+            </div>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
-

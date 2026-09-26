@@ -116,6 +116,12 @@ class TelemetryCollector:
                 f"[COLLECTOR] Stored telemetry for {doc['device_id']} (_id: {res.inserted_id}) "
                 f"at {doc['recorded_at'].isoformat()}"
             )
+            # Periodic background check for matured prediction validations
+            try:
+                from backend.app.prediction_validation import validation_service
+                validation_service.validate_matured_predictions()
+            except Exception as ve:
+                logger.debug(f"[COLLECTOR] Background validation check error: {ve}")
             return doc
         except DuplicateKeyError:
             logger.info(f"[COLLECTOR] Duplicate telemetry ignored for key: {doc.get('dedup_key')}")

@@ -134,3 +134,62 @@ def get_soil_moisture_prediction(
     from backend.app.ml_inference import inference_service
     return inference_service.predict_latest_from_db(device_id=device_id)
 
+
+@router.get("/irrigation/recommendation", summary="Get Explainable Irrigation Recommendation")
+def get_irrigation_recommendation(
+    device_id: Optional[str] = Query(default=None, description="Optional target device ID"),
+    scenario: Optional[str] = Query(default=None, description="Optional what-if demonstration scenario ('dry_no_rain', 'dry_rain_expected', 'adequate_moisture', 'safety_lockout')"),
+):
+    """
+    Computes an explainable, forecast-aware irrigation recommendation (Phase 5).
+    Combines live physical telemetry, Open-Meteo atmospheric forecasts, crop coefficients (Kc/MAD),
+    and Soil-Water ML V2 predictions under strict safety precedence.
+    Does NOT actuate the pump. Purely advisory and explainable.
+    """
+    from backend.app.irrigation_intelligence import recommendation_service
+    return recommendation_service.get_recommendation(device_id=device_id, scenario=scenario)
+
+
+@router.get("/ml/validation/summary", summary="Get Real Field Validation Summary")
+def get_ml_validation_summary(
+    device_id: Optional[str] = Query(default=None, description="Optional target device ID"),
+):
+    """
+    Returns real-world validation statistics for Soil-Water V2 from matured field predictions.
+    Separates real field metrics from simulated development metrics.
+    If zero predictions have been validated, returns status='collecting_data' and null metrics.
+    """
+    from backend.app.prediction_validation import validation_service
+    # Run validation worker pass first to ensure any newly matured predictions are evaluated
+    try:
+        validation_service.validate_matured_predictions()
+    except Exception:
+        pass
+    return validation_service.get_validation_summary(device_id=device_id)
+
+
+@router.get("/ml/validation/history", summary="Get Real Field Validation History")
+def get_ml_validation_history(
+    device_id: Optional[str] = Query(default=None, description="Optional target device ID"),
+    limit: int = Query(default=50, ge=1, le=200, description="Max history records to return"),
+    status: Optional[str] = Query(default=None, description="Optional validation status filter ('VALIDATED', 'PENDING', 'NO_MATCH', 'INVALID_TARGET_DATA')"),
+):
+    """
+    Returns recent prediction-actual pairs from the predictions collection.
+    """
+    from backend.app.prediction_validation import validation_service
+    return validation_service.get_validation_history(device_id=device_id, limit=limit, status=status)
+
+
+@router.post("/ml/validation/run-worker", summary="Trigger Background Validation Pass")
+def trigger_validation_worker(
+    tolerance_minutes: Optional[int] = Query(default=None, ge=1, le=60, description="Matching tolerance in minutes (default 15)"),
+):
+    """
+    Manually triggers a validation scan over matured PENDING predictions.
+    """
+    from backend.app.prediction_validation import validation_service
+    return validation_service.validate_matured_predictions(tolerance_minutes=tolerance_minutes)
+
+
+

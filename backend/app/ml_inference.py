@@ -104,7 +104,14 @@ class SoilMoistureInferenceService:
                 "details": "No telemetry documents found in database.",
             }
 
-        return self.predict_for_document(latest_doc, coll)
+        res = self.predict_for_document(latest_doc, coll)
+        if res.get("status") == "ok":
+            try:
+                from backend.app.prediction_validation import validation_service
+                validation_service.record_prediction_candidate(latest_doc, res)
+            except Exception as e:
+                logger.warning(f"[VALIDATION PIPELINE] Failed to record prediction candidate: {e}")
+        return res
 
     def predict_for_document(self, current_doc: Dict[str, Any], coll: Optional[Any] = None) -> Dict[str, Any]:
         """

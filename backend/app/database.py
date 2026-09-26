@@ -46,18 +46,32 @@ def get_telemetry_collection():
     return db["telemetry"]
 
 
+def get_predictions_collection():
+    """Returns the predictions collection for Phase 6 model validation."""
+    db = get_database()
+    return db["predictions"]
+
+
 def init_indexes() -> List[str]:
     """
-    Ensures optimal query and deduplication indexes exist on the telemetry collection:
-    1. device_id + recorded_at (DESCENDING) -> Supports device telemetry history queries.
-    2. recorded_at (DESCENDING) -> Supports latest and chronological history queries.
-    3. dedup_key (UNIQUE) -> Prevents multiple collector loops from writing duplicate observations.
+    Ensures optimal query and deduplication indexes exist on:
+    1. telemetry collection:
+       - device_id + recorded_at (DESCENDING)
+       - recorded_at (DESCENDING)
+       - dedup_key (UNIQUE)
+    2. predictions collection (Phase 6):
+       - device_id + created_at (DESCENDING) -> Cadence & history lookup
+       - target_at + validation.status -> Validation worker queue scanning
+       - prediction_id (UNIQUE) -> Canonical identifier lookup
+       - validation.status -> State filtering (PENDING vs VALIDATED)
+       - dedup_key (UNIQUE, SPARSE) -> Server-side cadence enforcement
     """
     coll = get_telemetry_collection()
+    pred_coll = get_predictions_collection()
     created_indexes = []
 
     try:
-        # Index 1: Compound device_id + recorded_at (DESCENDING)
+        # Telemetry Index 1: Compound device_id + recorded_at (DESCENDING)
         idx1 = coll.create_index(
             [("device_id", ASCENDING), ("recorded_at", DESCENDING)],
             name="idx_device_recorded_at",
@@ -65,7 +79,7 @@ def init_indexes() -> List[str]:
         )
         created_indexes.append(idx1)
 
-        # Index 2: recorded_at (DESCENDING)
+        # Telemetry Index 2: recorded_at (DESCENDING)
         idx2 = coll.create_index(
             [("recorded_at", DESCENDING)],
             name="idx_recorded_at_desc",
@@ -73,7 +87,7 @@ def init_indexes() -> List[str]:
         )
         created_indexes.append(idx2)
 
-        # Index 3: dedup_key (UNIQUE) - Deduplication protection
+        # Telemetry Index 3: dedup_key (UNIQUE) - Deduplication protection
         idx3 = coll.create_index(
             [("dedup_key", ASCENDING)],
             name="idx_dedup_key_unique",
@@ -82,6 +96,49 @@ def init_indexes() -> List[str]:
             background=True,
         )
         created_indexes.append(idx3)
+
+        # Predictions Index 1: device_id + created_at (DESCENDING)
+        pidx1 = pred_coll.create_index(
+            [("device_id", ASCENDING), ("created_at", DESCENDING)],
+            name="idx_pred_device_created",
+            background=True,
+        )
+        created_indexes.append(pidx1)
+
+        # Predictions Index 2: target_at + validation.status (Worker query)
+        pidx2 = pred_coll.create_index(
+            [("target_at", ASCENDING), ("validation.status", ASCENDING)],
+            name="idx_pred_target_status",
+            background=True,
+        )
+        created_indexes.append(pidx2)
+
+        # Predictions Index 3: prediction_id (UNIQUE)
+        pidx3 = pred_coll.create_index(
+            [("prediction_id", ASCENDING)],
+            name="idx_pred_id_unique",
+            unique=True,
+            background=True,
+        )
+        created_indexes.append(pidx3)
+
+        # Predictions Index 4: validation.status
+        pidx4 = pred_coll.create_index(
+            [("validation.status", ASCENDING)],
+            name="idx_pred_status",
+            background=True,
+        )
+        created_indexes.append(pidx4)
+
+        # Predictions Index 5: dedup_key (UNIQUE, SPARSE)
+        pidx5 = pred_coll.create_index(
+            [("dedup_key", ASCENDING)],
+            name="idx_pred_dedup_unique",
+            unique=True,
+            sparse=True,
+            background=True,
+        )
+        created_indexes.append(pidx5)
 
         logger.info(f"MongoDB indexes initialized successfully: {created_indexes}")
     except Exception as e:

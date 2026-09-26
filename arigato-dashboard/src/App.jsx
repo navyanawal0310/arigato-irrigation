@@ -130,6 +130,11 @@ function App() {
   const [espIp, setEspIp] = useState("10.110.8.97");
   const [fieldData, setFieldData] = useState(null);
   const [predictionData, setPredictionData] = useState(null);
+  const [recommendationData, setRecommendationData] = useState(null);
+  const [validationSummary, setValidationSummary] = useState(null);
+  const [validationHistory, setValidationHistory] = useState([]);
+  const [activeScenario, setActiveScenario] = useState("live");
+  const [historyData, setHistoryData] = useState([]);
   const [deviceConnected, setDeviceConnected] = useState(false);
   const [apiError, setApiError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -330,9 +335,17 @@ function App() {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 4000);
       try {
-        const [telemRes, predRes] = await Promise.allSettled([
+        const recUrl = activeScenario && activeScenario !== "live"
+          ? `${backendUrl}/api/irrigation/recommendation?scenario=${activeScenario}`
+          : `${backendUrl}/api/irrigation/recommendation`;
+
+        const [telemRes, predRes, histRes, recRes, valSumRes, valHistRes] = await Promise.allSettled([
           fetch(`${backendUrl}/api/telemetry/latest`, { cache: "no-store", signal: controller.signal }),
           fetch(`${backendUrl}/api/prediction/soil-moisture`, { cache: "no-store", signal: controller.signal }),
+          fetch(`${backendUrl}/api/telemetry/history?hours=24&limit=50`, { cache: "no-store", signal: controller.signal }),
+          fetch(recUrl, { cache: "no-store", signal: controller.signal }),
+          fetch(`${backendUrl}/api/ml/validation/summary`, { cache: "no-store", signal: controller.signal }),
+          fetch(`${backendUrl}/api/ml/validation/history?limit=30`, { cache: "no-store", signal: controller.signal }),
         ]);
 
         if (telemRes.status === "rejected" || !telemRes.value.ok) {
@@ -352,10 +365,47 @@ function App() {
           }
         }
 
+        if (histRes.status === "fulfilled" && histRes.value.ok) {
+          try {
+            const h = await histRes.value.json();
+            if (Array.isArray(h)) setHistoryData(h);
+          } catch {
+            // Keep existing history
+          }
+        }
+
+        let rec = null;
+        if (recRes.status === "fulfilled" && recRes.value.ok) {
+          try {
+            rec = await recRes.value.json();
+          } catch {
+            rec = null;
+          }
+        }
+
+        if (valSumRes.status === "fulfilled" && valSumRes.value.ok) {
+          try {
+            const vs = await valSumRes.value.json();
+            setValidationSummary(vs);
+          } catch {
+            // Keep existing
+          }
+        }
+
+        if (valHistRes.status === "fulfilled" && valHistRes.value.ok) {
+          try {
+            const vh = await valHistRes.value.json();
+            if (Array.isArray(vh)) setValidationHistory(vh);
+          } catch {
+            // Keep existing
+          }
+        }
+
         if (stopped) return;
         failureCount.current = 0;
         setFieldData(data);
         if (pred) setPredictionData(pred);
+        if (rec) setRecommendationData(rec);
         setDeviceConnected(true);
         setLastUpdated(new Date());
         setApiError(null);
@@ -378,7 +428,7 @@ function App() {
       stopped = true;
       clearInterval(interval);
     };
-  }, [backendUrl]);
+  }, [backendUrl, activeScenario]);
 
   const engine = evaluateSuitability({
     farmerInput,
@@ -485,6 +535,10 @@ function App() {
       <HardwareCockpit
         fieldData={fieldData}
         predictionData={predictionData}
+        recommendationData={recommendationData}
+        validationSummary={validationSummary}
+        validationHistory={validationHistory}
+        historyData={historyData}
         deviceConnected={deviceConnected}
         backendUrl={backendUrl}
         onBackendUrlChange={setBackendUrl}
@@ -494,6 +548,8 @@ function App() {
         lastUpdated={lastUpdated}
         activeMode={activeMode}
         onModeChange={setActiveMode}
+        activeScenario={activeScenario}
+        onScenarioChange={setActiveScenario}
       />
     ),
     about: <Architecture />,
