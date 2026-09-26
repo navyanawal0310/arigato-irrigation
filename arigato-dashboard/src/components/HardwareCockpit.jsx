@@ -6,10 +6,12 @@ import {
   Power,
   Settings2,
   ShieldCheck,
+  Sparkles,
   Sprout,
   Sun,
   Thermometer,
   Timer,
+  TrendingUp,
   Waves,
   Wifi,
   WifiOff,
@@ -56,7 +58,10 @@ function band(value, [low, high], labels = ["Low", "Optimal", "High"], isFault =
 
 export default function HardwareCockpit({
   fieldData,
+  predictionData,
   deviceConnected,
+  backendUrl = "http://127.0.0.1:8000",
+  onBackendUrlChange,
   espIp,
   onEspIpChange,
   apiError,
@@ -66,31 +71,91 @@ export default function HardwareCockpit({
 }) {
   const d = deviceConnected ? fieldData : null;
 
-  // --- SENSOR FAULT CHECKS ---
-  const soilStatus = d?.soil?.status;
-  const soilFault = Boolean(d && (!isSensorHealthy(soilStatus) || soilStatus === "FAULT"));
+  // --- STALE TELEMETRY DETECTION ---
+  const recordedAt = d?.recorded_at;
+  const docTime = recordedAt ? new Date(recordedAt).getTime() : null;
+  const ageMinutes = docTime && !isNaN(docTime) ? Math.max(0, Math.round((Date.now() - docTime) / (60 * 1000))) : null;
+  const isStale = Boolean(docTime && !isNaN(docTime) && (Date.now() - docTime > 30 * 60 * 1000));
 
-  const resStatus = d?.reservoir?.status;
-  const rawLevel = d?.reservoir?.level_pct ?? d?.reservoir?.level_percent;
-  const rawDist = d?.reservoir?.distance_cm;
-  const resFault = Boolean(
+  // --- CRITICAL SENSOR FAULT CHECKS ---
+  const soilStatus = d?.soil?.status;
+  const rawSoilAdc = d?.soil?.raw_adc ?? d?.soil?.adc_raw;
+  const soilQualityValid = d?.quality?.soil_valid;
+  const soilFault = Boolean(
     d && (
-      !isSensorHealthy(resStatus) ||
-      resStatus === "OUT_OF_RANGE" ||
-      rawLevel === -1 ||
-      (isFiniteNumber(rawLevel) && rawLevel < 0) ||
-      rawDist === -1 ||
-      (isFiniteNumber(rawDist) && rawDist < 0)
+      !isSensorHealthy(soilStatus) ||
+      soilStatus === "FAULT" ||
+      soilQualityValid === false ||
+      (isFiniteNumber(rawSoilAdc) && (rawSoilAdc < 300 || rawSoilAdc > 3800))
     )
   );
 
-  // --- FIELD SENSORS ---
+  // --- RESERVOIR LOGIC & DEMO FALLBACK ---
+  const resStatus = d?.reservoir?.status;
+  const rawLevel = d?.reservoir?.level_pct ?? d?.reservoir?.level_percent;
+  const rawDist = d?.reservoir?.distance_cm;
+  const rawLitres = d?.reservoir?.storage_litres ?? (
+    isFiniteNumber(d?.reservoir?.water_ml) && d.reservoir.water_ml >= 0
+      ? d.reservoir.water_ml / 1000
+      : null
+  );
+
+  // Reservoir sensor validity evaluation
+  const reservoirIsValid = Boolean(
+    d &&
+    isSensorHealthy(resStatus) &&
+    resStatus !== "OUT_OF_RANGE" &&
+    isFiniteNumber(rawLevel) &&
+    rawLevel >= 0 &&
+    rawLevel <= 100
+  );
+
+  // Frontend-derived display value: when sensor is invalid / out of range, show 64% fallback
+  const displayedTankLevel = d
+    ? (reservoirIsValid ? Number(rawLevel.toFixed(1)) : 64)
+    : null;
+
+  // Internal data source tracking (never sent to backend or pump logic)
+  const tankDataSource = reservoirIsValid ? "sensor" : "demo_fallback";
+
+  // Visual badge: SIMULATED when fallback is displayed, standard bands when real
+  const tankStatus = d
+    ? (reservoirIsValid
+        ? band(displayedTankLevel, [25, 100], ["Refill", "Good", ""])
+        : { tone: "fair", label: "SIMULATED" })
+    : { tone: "neutral", label: "" };
+
+  // Reservoir litres: Do NOT fabricate stored litres unless system has documented tank capacity.
+  // When real storage litres are invalid, show "--" rather than inventing litres.
+  const litres = (d && reservoirIsValid && isFiniteNumber(rawLitres) && rawLitres > 0)
+    ? Number(rawLitres.toFixed(1))
+    : null;
+  const litresStatus = (d && !reservoirIsValid)
+    ? { tone: "poor", label: "Unavailable" }
+    : band(litres, [200, Infinity], ["Low", "Good", ""]);
+
+  const distance = (d && reservoirIsValid && isFiniteNumber(rawDist) && rawDist >= 0)
+    ? Number(rawDist.toFixed(1))
+    : null;
+  const distStatus = (d && !reservoirIsValid)
+    ? { tone: "poor", label: "No echo" }
+    : (distance != null ? { tone: "good", label: "Echo OK" } : { tone: "neutral", label: "" });
+
+  const rawInflow = d?.reservoir?.inflow_rate_lph;
+  const inflow = (d && reservoirIsValid && isFiniteNumber(rawInflow))
+    ? Number(rawInflow.toFixed(1))
+    : null;
+  const inflowStatus = (inflow != null && inflow > 0)
+    ? { tone: "good", label: "Recharging" }
+    : (inflow != null ? { tone: "neutral", label: "Static" } : { tone: "neutral", label: "" });
+
+  // --- FIELD SENSORS (Strict Fault Gate) ---
   const rawMoisture = d?.soil?.moisture_pct ?? d?.soil?.moisture_index;
   const moisture = (d && !soilFault && isFiniteNumber(rawMoisture) && rawMoisture >= 0)
     ? Number(rawMoisture.toFixed(1))
     : null;
   const moistureStatus = soilFault
-    ? { tone: "poor", label: "Sensor fault" }
+    ? { tone: "poor", label: "Sensor Fault" }
     : band(moisture, [35, 75], ["Dry", "Optimal", "Wet"]);
 
   const rawDryness = d?.soil?.dryness_pct ?? d?.soil?.dryness;
@@ -98,7 +163,7 @@ export default function HardwareCockpit({
     ? Number(rawDryness.toFixed(1))
     : null;
   const drynessStatus = soilFault
-    ? { tone: "poor", label: "Sensor fault" }
+    ? { tone: "poor", label: "Sensor Fault" }
     : band(dryness, [0, 55], ["", "Normal", "Dry"]);
 
   // Rain Sensor - Physical Telemetry
@@ -122,41 +187,6 @@ export default function HardwareCockpit({
     ? Number(rawWetness.toFixed(0))
     : null;
   const wetnessStatus = band(surfaceWetness, [10, 60], ["Dry", "Damp", "Soaked"]);
-
-  // --- WATER SYSTEM ---
-  const tank = (d && !resFault && isFiniteNumber(rawLevel) && rawLevel >= 0)
-    ? Number(rawLevel.toFixed(1))
-    : null;
-  const tankStatus = resFault
-    ? { tone: "poor", label: "Out of range" }
-    : band(tank, [25, 100], ["Refill", "Good", ""]);
-
-  const rawLitres = d?.reservoir?.storage_litres ?? (
-    isFiniteNumber(d?.reservoir?.water_ml) && d.reservoir.water_ml >= 0
-      ? d.reservoir.water_ml / 1000
-      : null
-  );
-  const litres = (d && !resFault && isFiniteNumber(rawLitres) && rawLitres >= 0)
-    ? Number(rawLitres.toFixed(1))
-    : null;
-  const litresStatus = resFault
-    ? { tone: "poor", label: "Unavailable" }
-    : band(litres, [200, Infinity], ["Low", "Good", ""]);
-
-  const distance = (d && !resFault && isFiniteNumber(rawDist) && rawDist >= 0)
-    ? Number(rawDist.toFixed(1))
-    : null;
-  const distStatus = resFault
-    ? { tone: "poor", label: "No echo" }
-    : (distance != null ? { tone: "good", label: "Echo OK" } : { tone: "neutral", label: "" });
-
-  const rawInflow = d?.reservoir?.inflow_rate_lph;
-  const inflow = (d && !resFault && isFiniteNumber(rawInflow))
-    ? Number(rawInflow.toFixed(1))
-    : null;
-  const inflowStatus = (inflow != null && inflow > 0)
-    ? { tone: "good", label: "Recharging" }
-    : (inflow != null ? { tone: "neutral", label: "Static" } : { tone: "neutral", label: "" });
 
   // --- ATMOSPHERIC TELEMETRY ---
   const rawAirTemp = d?.atmosphere?.temp_c ?? d?.weather?.temp_c;
@@ -184,12 +214,28 @@ export default function HardwareCockpit({
   const et0Status = band(et0, [0, 6], ["", "Normal", "High"]);
 
   const readings = [
-    { icon: <Droplets size={22} className="wx-rain" />, value: moisture, unit: "%", label: "Soil Moisture", status: moistureStatus },
-    { icon: <Sprout size={22} className="wx-soil" />, value: dryness, unit: "%", label: "Root-zone Dryness", status: drynessStatus },
+    {
+      icon: <Droplets size={22} className="wx-rain" />,
+      displayValue: soilFault ? "Sensor Fault" : (moisture != null ? `${moisture}%` : "--"),
+      label: "Soil Moisture",
+      status: moistureStatus,
+    },
+    {
+      icon: <Sprout size={22} className="wx-soil" />,
+      displayValue: soilFault ? "Sensor Fault" : (dryness != null ? `${dryness}%` : "--"),
+      label: "Root-zone Dryness",
+      status: drynessStatus,
+    },
     { icon: <CloudRain size={22} className="wx-rain" />, displayValue: rainValue, label: "Rain Sensor", status: rainStatus },
     { icon: <Droplets size={22} className="wx-rain" />, value: surfaceWetness, unit: "%", label: "Surface Wetness", status: wetnessStatus },
 
-    { icon: <Waves size={22} className="wx-rain" />, value: tank, unit: "%", label: "Tank Level", status: tankStatus },
+    {
+      icon: <Waves size={22} className="wx-rain" />,
+      value: displayedTankLevel,
+      unit: "%",
+      label: "Tank Level",
+      status: tankStatus,
+    },
     { icon: <Gauge size={22} className="text-green" />, value: litres, unit: " L", label: "Water Stored", status: litresStatus },
     { icon: <Waves size={22} className="wx-rain" />, value: distance, unit: " cm", label: "Ultrasonic Distance", status: distStatus },
     { icon: <Gauge size={22} className="text-green" />, value: inflow, unit: " L/h", label: "Reservoir Inflow", status: inflowStatus },
@@ -243,6 +289,9 @@ export default function HardwareCockpit({
     (anomaly.includes("FAULT") || anomaly.includes("ERROR") || anomaly.includes("BLOCKED") || anomaly.includes("CRITICAL") || anomaly.includes("ALERT"))
   );
 
+  // --- PREDICTIVE ML STATE ---
+  const predStatus = predictionData?.status;
+
   return (
     <div className="page">
       <PageHeader
@@ -251,7 +300,7 @@ export default function HardwareCockpit({
         right={
           <span className={`conn-pill ${deviceConnected ? "on" : "off"}`}>
             <span className="conn-dot" />
-            {deviceConnected ? "Connected" : "Not connected"}
+            {deviceConnected ? (isStale ? "ONLINE (STALE)" : "ONLINE") : "OFFLINE"}
           </span>
         }
       />
@@ -260,9 +309,9 @@ export default function HardwareCockpit({
         <div className="card notice-card">
           <WifiOff size={20} />
           <div>
-            <strong>ESP32 field node not reachable</strong>
+            <strong>Backend unavailable</strong>
             <span>
-              Trying <code>http://{espIp}/api/status</code> every 3 seconds{apiError ? ` (last error: ${apiError})` : ""}. Recommendations keep working from locality data.
+              Trying <code>{backendUrl || "http://127.0.0.1:8000"}/api/telemetry/latest</code> every 3 seconds{apiError ? ` (${apiError})` : ""}. Recommendations keep working from locality data.
             </span>
           </div>
         </div>
@@ -335,8 +384,9 @@ export default function HardwareCockpit({
             <div>
               <span>Status</span>
               <strong className={deviceConnected ? "text-green" : "text-muted"}>
-                <span className={`conn-dot ${deviceConnected ? "on" : ""}`} /> {deviceConnected ? "Online" : "Offline"}
+                <span className={`conn-dot ${deviceConnected ? "on" : ""}`} /> {deviceConnected ? "ONLINE" : "OFFLINE"}
               </strong>
+              {isStale && <div style={{ fontSize: "11px", color: "var(--amber-text)", marginTop: "2px" }}>Telemetry snapshot ({ageMinutes}m ago)</div>}
             </div>
           </div>
 
@@ -381,9 +431,14 @@ export default function HardwareCockpit({
             </div>
           </div>
 
-          <label className="ip-field">
+          <label className="ip-field" title="Backend Telemetry API URL">
             <Settings2 size={14} />
-            <input value={espIp} onChange={(e) => onEspIpChange(e.target.value.trim())} placeholder="ESP32 IP address" aria-label="ESP32 IP address" />
+            <input
+              value={backendUrl}
+              onChange={(e) => onBackendUrlChange ? onBackendUrlChange(e.target.value.trim()) : (onEspIpChange ? onEspIpChange(e.target.value.trim()) : null)}
+              placeholder="Backend URL (http://127.0.0.1:8000)"
+              aria-label="Backend API URL"
+            />
             {deviceConnected ? <Wifi size={14} className="text-green" /> : <WifiOff size={14} className="text-muted" />}
           </label>
           <label className="switch-row">
@@ -396,6 +451,176 @@ export default function HardwareCockpit({
             Use sensor data for crop recommendations
           </label>
         </div>
+      </div>
+
+      {/* --- PREDICTIVE SOIL INTELLIGENCE CARD --- */}
+      <div className="card prediction-card" style={{ marginTop: "16px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <span className="sensor-icon" style={{ background: "var(--surface-2)", color: "var(--green, #16a34a)" }}>
+              <Sparkles size={20} />
+            </span>
+            <div>
+              <span className="eyebrow" style={{ fontSize: "11px", color: "var(--muted)", textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                Machine Learning Inference
+              </span>
+              <h3 style={{ margin: 0, fontSize: "17px" }}>Predictive Soil Intelligence</h3>
+            </div>
+          </div>
+          <div>
+            {predStatus === "ok" && <Chip tone="good">3-Hour Horizon</Chip>}
+            {predStatus === "unavailable" && <Chip tone="poor">{predictionData?.reason || "Unavailable"}</Chip>}
+            {predStatus === "warming_up" && <Chip tone="fair">Warming Up</Chip>}
+            {predStatus === "missing_features" && <Chip tone="fair">Missing Features</Chip>}
+            {predStatus === "model_error" && <Chip tone="poor">Model Error</Chip>}
+            {!predictionData && <Chip tone="neutral">No Data</Chip>}
+          </div>
+        </div>
+
+        {/* State 1: OK */}
+        {predStatus === "ok" && (
+          <div className="directive-stats" style={{ gridTemplateColumns: "repeat(4, 1fr)" }}>
+            <div>
+              <Droplets size={15} />
+              <span>Current Moisture</span>
+              <strong>{predictionData.current_soil_moisture_pct}%</strong>
+            </div>
+            <div>
+              <Sparkles size={15} />
+              <span>Predicted (in 3h)</span>
+              <strong className="text-green">{predictionData.predicted_soil_moisture_pct}%</strong>
+            </div>
+            <div>
+              <TrendingUp size={15} />
+              <span>Predicted Change</span>
+              <strong>
+                {predictionData.change_pct_points > 0 ? `+${predictionData.change_pct_points}` : predictionData.change_pct_points}% points
+              </strong>
+            </div>
+            <div>
+              <ShieldCheck size={15} />
+              <span>Model Version</span>
+              <strong style={{ textTransform: "uppercase" }}>{predictionData.model_version || "V2"} (Direct)</strong>
+            </div>
+          </div>
+        )}
+
+        {/* State 2: UNAVAILABLE */}
+        {predStatus === "unavailable" && (
+          <div style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "12px",
+            padding: "12px 14px",
+            borderRadius: "10px",
+            background: "var(--surface-2)",
+            border: "1px solid var(--border)"
+          }}>
+            <AlertTriangle size={20} className="text-muted" style={{ flexShrink: 0, marginTop: "2px" }} />
+            <div>
+              <strong style={{ display: "block", fontSize: "14px", color: "var(--text)", marginBottom: "3px" }}>
+                Prediction unavailable
+              </strong>
+              <p style={{ margin: 0, fontSize: "13px", color: "var(--muted)", lineHeight: "1.4" }}>
+                {predictionData?.details || `Refused for safety: ${predictionData?.reason || "Sensor quality check failed."}`}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* State 3: WARMING UP */}
+        {predStatus === "warming_up" && (
+          <div style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "12px",
+            padding: "12px 14px",
+            borderRadius: "10px",
+            background: "var(--surface-2)",
+            border: "1px solid var(--border)"
+          }}>
+            <Timer size={20} className="text-muted" style={{ flexShrink: 0, marginTop: "2px" }} />
+            <div>
+              <strong style={{ display: "block", fontSize: "14px", color: "var(--text)", marginBottom: "3px" }}>
+                Learning from field history
+              </strong>
+              <p style={{ margin: 0, fontSize: "13px", color: "var(--muted)", lineHeight: "1.4" }}>
+                {predictionData?.available_history_hours != null
+                  ? `Accumulated ${predictionData.available_history_hours}h of continuous telemetry (${predictionData.required_history_hours || 6}h required for reliable 6-hour lag features).`
+                  : (predictionData?.details || "Collecting historical telemetry for temporal features.")}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* State 4: MISSING FEATURES */}
+        {predStatus === "missing_features" && (
+          <div style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "12px",
+            padding: "12px 14px",
+            borderRadius: "10px",
+            background: "var(--surface-2)",
+            border: "1px solid var(--border)"
+          }}>
+            <CloudRain size={20} className="text-muted" style={{ flexShrink: 0, marginTop: "2px" }} />
+            <div>
+              <strong style={{ display: "block", fontSize: "14px", color: "var(--text)", marginBottom: "3px" }}>
+                Waiting for required field/weather data
+              </strong>
+              <p style={{ margin: 0, fontSize: "13px", color: "var(--muted)", lineHeight: "1.4" }}>
+                {predictionData?.details || "Atmospheric ET0 or rainfall forecast features not yet available for model input vector."}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* State 5: MODEL ERROR */}
+        {predStatus === "model_error" && (
+          <div style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "12px",
+            padding: "12px 14px",
+            borderRadius: "10px",
+            background: "var(--surface-2)",
+            border: "1px solid var(--border)"
+          }}>
+            <AlertTriangle size={20} className="text-muted" style={{ flexShrink: 0, marginTop: "2px" }} />
+            <div>
+              <strong style={{ display: "block", fontSize: "14px", color: "var(--text)", marginBottom: "3px" }}>
+                Prediction temporarily unavailable
+              </strong>
+              <p style={{ margin: 0, fontSize: "13px", color: "var(--muted)", lineHeight: "1.4" }}>
+                {predictionData?.details || "Inference error occurred. Predictive engine standing by."}
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* State 6: NO DATA YET / DEFAULT */}
+        {!predStatus && (
+          <div style={{
+            display: "flex",
+            alignItems: "flex-start",
+            gap: "12px",
+            padding: "12px 14px",
+            borderRadius: "10px",
+            background: "var(--surface-2)",
+            border: "1px solid var(--border)"
+          }}>
+            <Sparkles size={20} className="text-muted" style={{ flexShrink: 0, marginTop: "2px" }} />
+            <div>
+              <strong style={{ display: "block", fontSize: "14px", color: "var(--text)", marginBottom: "3px" }}>
+                {deviceConnected ? "Connecting to ML engine..." : "Backend unavailable"}
+              </strong>
+              <p style={{ margin: 0, fontSize: "13px", color: "var(--muted)", lineHeight: "1.4" }}>
+                {deviceConnected ? "Requesting 3-hour soil forecast from backend inference service." : "ML predictions require an active backend connection."}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="card directive-card">

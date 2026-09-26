@@ -126,8 +126,10 @@ function App() {
   const [openMenu, setOpenMenu] = useState(null); // "location" | "search" | "alerts"
   const [query, setQuery] = useState("");
 
+  const [backendUrl, setBackendUrl] = useState("http://127.0.0.1:8000");
   const [espIp, setEspIp] = useState("10.110.8.97");
   const [fieldData, setFieldData] = useState(null);
+  const [predictionData, setPredictionData] = useState(null);
   const [deviceConnected, setDeviceConnected] = useState(false);
   const [apiError, setApiError] = useState(null);
   const [lastUpdated, setLastUpdated] = useState(null);
@@ -317,31 +319,53 @@ function App() {
     }
   };
 
-  // ESP32 telemetry polling
+  // Telemetry & ML prediction polling from backend service (every 3 seconds)
   useEffect(() => {
     let stopped = false;
     let running = false;
 
     const poll = async () => {
-      if (running || !espIp) return;
+      if (running || !backendUrl) return;
       running = true;
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 4000);
       try {
-        const response = await fetch(`http://${espIp}/api/status`, { cache: "no-store", signal: controller.signal });
-        if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        const data = await response.json();
+        const [telemRes, predRes] = await Promise.allSettled([
+          fetch(`${backendUrl}/api/telemetry/latest`, { cache: "no-store", signal: controller.signal }),
+          fetch(`${backendUrl}/api/prediction/soil-moisture`, { cache: "no-store", signal: controller.signal }),
+        ]);
+
+        if (telemRes.status === "rejected" || !telemRes.value.ok) {
+          const statusText = telemRes.status === "rejected"
+            ? (telemRes.reason?.name === "AbortError" ? "timed out" : "Backend unavailable")
+            : `HTTP ${telemRes.value.status}`;
+          throw new Error(statusText);
+        }
+
+        const data = await telemRes.value.json();
+        let pred = null;
+        if (predRes.status === "fulfilled" && predRes.value.ok) {
+          try {
+            pred = await predRes.value.json();
+          } catch {
+            pred = null;
+          }
+        }
+
         if (stopped) return;
         failureCount.current = 0;
         setFieldData(data);
+        if (pred) setPredictionData(pred);
         setDeviceConnected(true);
         setLastUpdated(new Date());
         setApiError(null);
       } catch (error) {
         if (stopped) return;
         failureCount.current += 1;
-        setApiError(error.name === "AbortError" ? "timed out" : error.message);
-        if (failureCount.current > 2) setDeviceConnected(false);
+        setApiError(error.name === "AbortError" ? "timed out" : "Backend unavailable");
+        if (failureCount.current > 2) {
+          setDeviceConnected(false);
+        }
       } finally {
         clearTimeout(timeout);
         running = false;
@@ -354,7 +378,7 @@ function App() {
       stopped = true;
       clearInterval(interval);
     };
-  }, [espIp]);
+  }, [backendUrl]);
 
   const engine = evaluateSuitability({
     farmerInput,
@@ -460,7 +484,10 @@ function App() {
     cockpit: (
       <HardwareCockpit
         fieldData={fieldData}
+        predictionData={predictionData}
         deviceConnected={deviceConnected}
+        backendUrl={backendUrl}
+        onBackendUrlChange={setBackendUrl}
         espIp={espIp}
         onEspIpChange={setEspIp}
         apiError={apiError}

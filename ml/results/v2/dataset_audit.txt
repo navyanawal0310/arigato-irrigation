@@ -1,0 +1,87 @@
+================================================================================
+KRISHI SETU - V1 DATASET AUDIT & V2 DIAGNOSTIC REPORT
+================================================================================
+
+Audit Date: 2026-09-26T04:23:42.387955
+
+--- SPLIT DISTRIBUTION SUMMARY ---
+
+[RAW_5000H]
+  Observations       : 5000
+  Time Window        : 2026-01-01 00:00:00 -> 2026-07-28 07:00:00
+  Moisture Mean±Std  : 28.286 ± 7.059%
+  Moisture Min / Max : 0.0% / 45.05%
+  Rain Hours         : 343
+  Irrigation Hours   : 1203
+  Pump Active Hours  : 1203
+  High ET0 Hours     : 1645
+  Near-Wilting Hours : 467
+  Near-Sat Hours     : 885
+  Scenarios          : {'NORMAL_BALANCED': 1000, 'EXTENDED_DROUGHT_DEFICIT': 1000, 'HOT_HIGH_ET0': 800, 'PASSING_SHOWERS': 800, 'AUTUMN_MIXED': 800, 'MONSOON_HEAVY_RAIN': 600}
+
+[TRAIN_70PCT]
+  Observations       : 3485
+  Time Window        : 2026-01-01 06:00:00 -> 2026-05-26 16:00:00
+  Moisture Mean±Std  : 26.081 ± 7.187%
+  Moisture Min / Max : 11.64% / 45.05%
+  Rain Hours         : 230
+  Irrigation Hours   : 1201
+  Pump Active Hours  : 1201
+  High ET0 Hours     : 1607
+  Near-Wilting Hours : 460
+  Near-Sat Hours     : 537
+  Scenarios          : {'EXTENDED_DROUGHT_DEFICIT': 998, 'NORMAL_BALANCED': 994, 'HOT_HIGH_ET0': 796, 'MONSOON_HEAVY_RAIN': 600, 'PASSING_SHOWERS': 97}
+
+[VAL_15PCT]
+  Observations       : 746
+  Time Window        : 2026-05-26 17:00:00 -> 2026-06-26 18:00:00
+  Moisture Mean±Std  : 34.71 ± 1.292%
+  Moisture Min / Max : 29.05% / 38.42%
+  Rain Hours         : 75
+  Irrigation Hours   : 0
+  Pump Active Hours  : 0
+  High ET0 Hours     : 25
+  Near-Wilting Hours : 0
+  Near-Sat Hours     : 327
+  Scenarios          : {'PASSING_SHOWERS': 703, 'AUTUMN_MIXED': 43}
+
+[TEST_15PCT]
+  Observations       : 748
+  Time Window        : 2026-06-26 19:00:00 -> 2026-07-28 04:00:00
+  Moisture Mean±Std  : 32.368 ± 1.854%
+  Moisture Min / Max : 25.4% / 37.14%
+  Rain Hours         : 38
+  Irrigation Hours   : 0
+  Pump Active Hours  : 0
+  High ET0 Hours     : 9
+  Near-Wilting Hours : 0
+  Near-Sat Hours     : 21
+  Scenarios          : {'AUTUMN_MIXED': 748}
+
+================================================================================
+ROOT CAUSE DIAGNOSIS:
+1. Why irrigation_events = 0 in test set:
+   The chronological test set spans index 4231 to 5000.
+   In V1 synthetic_generator, scenario assignment was blocked in chronological order:
+   - Hours 0-1000: NORMAL_BALANCED (auto-irrigate enabled)
+   - Hours 1000-1800: HOT_HIGH_ET0 (auto-irrigate enabled)
+   - Hours 1800-2400: MONSOON (auto-irrigate disabled, rain)
+   - Hours 2400-3400: DROUGHT (auto-irrigate disabled, deficit only)
+   - Hours 3400-4200: PASSING_SHOWERS (rain frequent)
+   - Hours 4200-5000: AUTUMN_MIXED
+   Because the test set fell entirely in AUTUMN_MIXED (hours 4235-4983), where moisture remained
+   moderate (~26-34%) and rain showers occurred every 25 hours, soil moisture never dropped below the
+   hardcoded trigger threshold (MAD = 50% => 23.5% moisture). Thus, zero irrigation events occurred in the test window.
+
+2. Why low_moisture_near_wilting = 0 in test set:
+   The severe drought regime was localized entirely in hours 2400-3400, which fell exclusively in the
+   TRAINING split! Neither the validation split nor the test split ever experienced severe drought.
+
+3. Why rain-event ML failed against persistence (-28.4%):
+   At time t, the ML model features only observed precipitation that ALREADY occurred (rainfall_mm,
+   rolling_rain_6h) and a static 24h aggregate forecast. The model did NOT receive an explicit forecast
+   for the 3-hour prediction horizon (forecast_rain_next_3h_mm). When rain began unexpectedly between
+   t+1 and t+3, the actual moisture spiked up by +2% to +8%. Because ML tried to predict drying while
+   persistence remained frozen, ML's error was wider than persistence's static lag error!
+
+================================================================================

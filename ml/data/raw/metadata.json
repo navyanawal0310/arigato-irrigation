@@ -1,0 +1,24 @@
+{
+  "dataset_name": "krishi_setu_synthetic_telemetry_v1",
+  "dataset_type": "SIMULATED / DEVELOPMENT DATA",
+  "notice": "Never describe model performance on synthetic data as validated real-world agricultural accuracy.",
+  "generated_at": "2026-09-26T04:11:25.347203",
+  "total_observations": 5000,
+  "random_seed": 42,
+  "time_range_start": "2026-01-01 00:00:00",
+  "time_range_end": "2026-07-28 07:00:00",
+  "sampling_interval": "1 hour",
+  "scenarios": {
+    "NORMAL_BALANCED": 1000,
+    "EXTENDED_DROUGHT_DEFICIT": 1000,
+    "HOT_HIGH_ET0": 800,
+    "PASSING_SHOWERS": 800,
+    "AUTUMN_MIXED": 800,
+    "MONSOON_HEAVY_RAIN": 600
+  },
+  "fault_count": 6,
+  "irrigation_events": 1203,
+  "rain_events": 343,
+  "mean_temperature_c": 28.04,
+  "mean_soil_moisture_pct": 28.29
+}

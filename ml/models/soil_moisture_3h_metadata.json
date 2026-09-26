@@ -1,0 +1,89 @@
+{
+  "model_name": "soil_moisture_3h",
+  "model_version": "1.0.0-PROTOTYPE",
+  "selected_model_type": "LinearRegression",
+  "training_timestamp": "2026-09-26T04:11:51.872565",
+  "random_seed": 42,
+  "dataset_type": "SIMULATED / DEVELOPMENT DATA",
+  "notice": "Never describe model performance on synthetic data as validated real-world agricultural accuracy.",
+  "prediction_horizon_hours": 3,
+  "target_column": "soil_moisture_t_plus_3h",
+  "n_training_samples": 3485,
+  "n_validation_samples": 746,
+  "n_test_samples": 748,
+  "feature_names": [
+    "soil_moisture_pct",
+    "soil_dryness_pct",
+    "temperature_c",
+    "humidity_pct",
+    "rainfall_mm",
+    "forecast_rain_mm",
+    "et0_mm_day",
+    "surface_wetness_pct",
+    "is_raining",
+    "kc_factor",
+    "mad_threshold_pct",
+    "pump_active",
+    "irrigation_litres",
+    "hour",
+    "day_of_year",
+    "hour_sin",
+    "hour_cos",
+    "soil_moisture_lag_1h",
+    "soil_moisture_lag_3h",
+    "soil_moisture_lag_6h",
+    "moisture_change_1h",
+    "moisture_change_3h",
+    "rolling_temperature_3h",
+    "rolling_et0_3h",
+    "rolling_rain_6h",
+    "irrigation_last_6h"
+  ],
+  "validation_benchmark_all_models": {
+    "Baseline_Persistence": {
+      "mae": 1.0174,
+      "rmse": 1.2957,
+      "r2": -0.0335
+    },
+    "Baseline_PhysicalET": {
+      "mae": 1.0201,
+      "rmse": 1.3005,
+      "r2": -0.0412
+    },
+    "LinearRegression": {
+      "mae": 0.8683,
+      "rmse": 1.0989,
+      "r2": 0.2566
+    },
+    "RidgeRegression": {
+      "mae": 0.8686,
+      "rmse": 1.0992,
+      "r2": 0.2561
+    },
+    "RandomForestRegressor": {
+      "mae": 0.9192,
+      "rmse": 1.1743,
+      "r2": 0.1511
+    },
+    "HistGradientBoostingRegressor": {
+      "mae": 0.9008,
+      "rmse": 1.1369,
+      "r2": 0.2043
+    }
+  },
+  "final_test_metrics": {
+    "selected_model": {
+      "name": "LinearRegression",
+      "mae": 0.8605,
+      "rmse": 1.1991,
+      "r2": 0.5996
+    },
+    "persistence_baseline": {
+      "name": "Baseline_Persistence",
+      "mae": 0.9142,
+      "rmse": 1.1558,
+      "r2": 0.628
+    },
+    "rmse_reduction_pct_vs_persistence": -3.75
+  }
+}

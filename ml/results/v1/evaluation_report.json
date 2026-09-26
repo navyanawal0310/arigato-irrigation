@@ -1,0 +1,82 @@
+{
+  "overall_test_set": {
+    "sample_count": 748,
+    "model_mae": 0.8605,
+    "model_rmse": 1.1991,
+    "model_r2": 0.5996,
+    "persistence_mae": 0.9142,
+    "persistence_rmse": 1.1558,
+    "persistence_r2": 0.628,
+    "rmse_improvement_pct": -3.75
+  },
+  "dry_periods": {
+    "sample_count": 710,
+    "model_mae": 0.8491,
+    "model_rmse": 1.1752,
+    "model_r2": 0.618,
+    "persistence_mae": 0.9056,
+    "persistence_rmse": 1.1444,
+    "persistence_r2": 0.6377,
+    "rmse_improvement_pct": -2.69
+  },
+  "rain_events": {
+    "sample_count": 169,
+    "model_mae": 0.9923,
+    "model_rmse": 1.4981,
+    "model_r2": -0.1225,
+    "persistence_mae": 0.9114,
+    "persistence_rmse": 1.1665,
+    "persistence_r2": 0.3194,
+    "rmse_improvement_pct": -28.43
+  },
+  "irrigation_events": {
+    "sample_count": 0,
+    "model_mae": 0.0,
+    "model_rmse": 0.0,
+    "model_r2": 0.0,
+    "persistence_mae": 0.0,
+    "persistence_rmse": 0.0,
+    "persistence_r2": 0.0,
+    "rmse_improvement_pct": 0.0
+  },
+  "high_et0_periods": {
+    "sample_count": 9,
+    "model_mae": 1.2068,
+    "model_rmse": 1.3802,
+    "model_r2": 0.075,
+    "persistence_mae": 1.1878,
+    "persistence_rmse": 1.4384,
+    "persistence_r2": -0.0047,
+    "rmse_improvement_pct": 4.05
+  },
+  "low_moisture_near_wilting": {
+    "sample_count": 0,
+    "model_mae": 0.0,
+    "model_rmse": 0.0,
+    "model_r2": 0.0,
+    "persistence_mae": 0.0,
+    "persistence_rmse": 0.0,
+    "persistence_r2": 0.0,
+    "rmse_improvement_pct": 0.0
+  },
+  "optimal_moisture_bracket": {
+    "sample_count": 727,
+    "model_mae": 0.8556,
+    "model_rmse": 1.1979,
+    "model_r2": 0.5955,
+    "persistence_mae": 0.8989,
+    "persistence_rmse": 1.1341,
+    "persistence_r2": 0.6374,
+    "rmse_improvement_pct": -5.63
+  },
+  "near_saturation_wet": {
+    "sample_count": 21,
+    "model_mae": 1.0315,
+    "model_rmse": 1.2412,
+    "model_r2": -0.0994,
+    "persistence_mae": 1.4424,
+    "persistence_rmse": 1.7472,
+    "persistence_r2": -1.1785,
+    "rmse_improvement_pct": 28.96
+  }
+}

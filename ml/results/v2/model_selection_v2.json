@@ -1,0 +1,134 @@
+{
+  "model_version": "2.0.0",
+  "selected_candidate": "Direct_ExtraTrees",
+  "candidate_type": "direct",
+  "validation_rmse": 0.9511,
+  "validation_mae": 0.741,
+  "validation_r2": 0.9856,
+  "val_improvement_vs_persistence_pct": 54.19,
+  "val_improvement_vs_physics_pct": 20.32,
+  "persistence_baseline_val_rmse": 2.0763,
+  "physics_baseline_val_rmse": 1.1937,
+  "features": [
+    "soil_moisture_pct",
+    "soil_dryness_pct",
+    "temperature_c",
+    "humidity_pct",
+    "observed_rain_mm",
+    "forecast_rain_next_3h_mm",
+    "forecast_rain_24h_mm",
+    "et0_mm_day",
+    "surface_wetness_pct",
+    "is_raining",
+    "kc_factor",
+    "mad_threshold_pct",
+    "pump_active",
+    "irrigation_litres",
+    "soil_storage_capacity_pct",
+    "hour",
+    "day_of_year",
+    "hour_sin",
+    "hour_cos",
+    "day_sin",
+    "day_cos",
+    "soil_moisture_lag_1h",
+    "soil_moisture_lag_2h",
+    "soil_moisture_lag_3h",
+    "soil_moisture_lag_6h",
+    "moisture_slope_1h",
+    "moisture_slope_3h",
+    "moisture_slope_6h",
+    "rolling_temperature_3h",
+    "rolling_et0_3h",
+    "rolling_et0_6h",
+    "rolling_rain_3h",
+    "rolling_rain_6h",
+    "irrigation_last_1h",
+    "irrigation_last_3h",
+    "irrigation_last_6h"
+  ],
+  "target": "soil_moisture_t_plus_3h",
+  "prediction_horizon_hours": 3,
+  "all_candidate_val_results": {
+    "Direct_LinearRegression": {
+      "model_type": "direct",
+      "val_mae": 0.7969,
+      "val_rmse": 1.0231,
+      "val_r2": 0.9833,
+      "improvement_vs_persistence_pct": 50.72,
+      "improvement_vs_physics_pct": 14.29
+    },
+    "Direct_Ridge": {
+      "model_type": "direct",
+      "val_mae": 0.7963,
+      "val_rmse": 1.0212,
+      "val_r2": 0.9834,
+      "improvement_vs_persistence_pct": 50.82,
+      "improvement_vs_physics_pct": 14.45
+    },
+    "Direct_RandomForest": {
+      "model_type": "direct",
+      "val_mae": 0.7525,
+      "val_rmse": 0.9685,
+      "val_r2": 0.9851,
+      "improvement_vs_persistence_pct": 53.35,
+      "improvement_vs_physics_pct": 18.87
+    },
+    "Direct_HistGradientBoosting": {
+      "model_type": "direct",
+      "val_mae": 0.7662,
+      "val_rmse": 0.9949,
+      "val_r2": 0.9842,
+      "improvement_vs_persistence_pct": 52.08,
+      "improvement_vs_physics_pct": 16.65
+    },
+    "Direct_ExtraTrees": {
+      "model_type": "direct",
+      "val_mae": 0.741,
+      "val_rmse": 0.9511,
+      "val_r2": 0.9856,
+      "improvement_vs_persistence_pct": 54.19,
+      "improvement_vs_physics_pct": 20.32
+    },
+    "Hybrid_Physics_Linear": {
+      "model_type": "hybrid",
+      "val_mae": 0.7632,
+      "val_rmse": 0.9658,
+      "val_r2": 0.9851,
+      "improvement_vs_persistence_pct": 53.48,
+      "improvement_vs_physics_pct": 19.09
+    },
+    "Hybrid_Physics_Ridge": {
+      "model_type": "hybrid",
+      "val_mae": 0.7631,
+      "val_rmse": 0.9664,
+      "val_r2": 0.9851,
+      "improvement_vs_persistence_pct": 53.46,
+      "improvement_vs_physics_pct": 19.04
+    },
+    "Hybrid_Physics_RandomForest": {
+      "model_type": "hybrid",
+      "val_mae": 0.7508,
+      "val_rmse": 0.9672,
+      "val_r2": 0.9851,
+      "improvement_vs_persistence_pct": 53.42,
+      "improvement_vs_physics_pct": 18.97
+    },
+    "Hybrid_Physics_HistGradientBoosting": {
+      "model_type": "hybrid",
+      "val_mae": 0.7426,
+      "val_rmse": 0.9553,
+      "val_r2": 0.9855,
+      "improvement_vs_persistence_pct": 53.99,
+      "improvement_vs_physics_pct": 19.97
+    },
+    "Hybrid_Physics_ExtraTrees": {
+      "model_type": "hybrid",
+      "val_mae": 0.7451,
+      "val_rmse": 0.956,
+      "val_r2": 0.9854,
+      "improvement_vs_persistence_pct": 53.96,
+      "improvement_vs_physics_pct": 19.91
+    }
+  }
+}

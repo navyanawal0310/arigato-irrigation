@@ -1,0 +1,100 @@
+{
+  "dataset_version": "2.0.0",
+  "split_method": "Strict Chronological Split (No Shuffling)",
+  "train_samples": 4193,
+  "val_samples": 898,
+  "test_samples": 900,
+  "total_valid_samples": 5991,
+  "n_features": 36,
+  "features": [
+    "soil_moisture_pct",
+    "soil_dryness_pct",
+    "temperature_c",
+    "humidity_pct",
+    "observed_rain_mm",
+    "forecast_rain_next_3h_mm",
+    "forecast_rain_24h_mm",
+    "et0_mm_day",
+    "surface_wetness_pct",
+    "is_raining",
+    "kc_factor",
+    "mad_threshold_pct",
+    "pump_active",
+    "irrigation_litres",
+    "soil_storage_capacity_pct",
+    "hour",
+    "day_of_year",
+    "hour_sin",
+    "hour_cos",
+    "day_sin",
+    "day_cos",
+    "soil_moisture_lag_1h",
+    "soil_moisture_lag_2h",
+    "soil_moisture_lag_3h",
+    "soil_moisture_lag_6h",
+    "moisture_slope_1h",
+    "moisture_slope_3h",
+    "moisture_slope_6h",
+    "rolling_temperature_3h",
+    "rolling_et0_3h",
+    "rolling_et0_6h",
+    "rolling_rain_3h",
+    "rolling_rain_6h",
+    "irrigation_last_1h",
+    "irrigation_last_3h",
+    "irrigation_last_6h"
+  ],
+  "direct_target": "soil_moisture_t_plus_3h",
+  "residual_target": "soil_moisture_residual_t_plus_3h",
+  "physics_baseline_col": "physics_prediction_t_plus_3h",
+  "train_time_range": [
+    "2026-01-01 06:00:00",
+    "2026-06-24 22:00:00"
+  ],
+  "val_time_range": [
+    "2026-06-24 23:00:00",
+    "2026-08-01 08:00:00"
+  ],
+  "test_time_range": [
+    "2026-08-01 09:00:00",
+    "2026-09-07 20:00:00"
+  ],
+  "regime_distribution": {
+    "train": {
+      "EXTENDED_DROUGHT_WILTING": 1100,
+      "NORMAL_BALANCED": 994,
+      "HOT_HIGH_ET0": 750,
+      "HEAVY_MONSOON_STORM": 749,
+      "PASSING_SHOWERS_RECOVERY": 600
+    },
+    "val": {
+      "EXTENDED_DROUGHT_WILTING": 220,
+      "NORMAL_BALANCED": 200,
+      "HEAVY_MONSOON_STORM": 178,
+      "PASSING_SHOWERS_RECOVERY": 150,
+      "HOT_HIGH_ET0": 150
+    },
+    "test": {
+      "EXTENDED_DROUGHT_WILTING": 220,
+      "NORMAL_BALANCED": 200,
+      "HEAVY_MONSOON_STORM": 180,
+      "PASSING_SHOWERS_RECOVERY": 150,
+      "HOT_HIGH_ET0": 150
+    }
+  },
+  "irrigation_event_counts": {
+    "train": 548,
+    "val": 67,
+    "test": 96
+  },
+  "rain_event_counts": {
+    "train": 295,
+    "val": 70,
+    "test": 71
+  },
+  "near_wilting_counts": {
+    "train": 400,
+    "val": 77,
+    "test": 80
+  }
+}

@@ -1,0 +1,32 @@
+# Environment & Secrets (NEVER COMMIT)
+.env
+*.env
+!.env.example
+*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build artifacts
+dist/
+build/
+.DS_Store
+Thumbs.db
+arigato-hardware/include/secrets.h
