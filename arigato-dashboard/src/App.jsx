@@ -351,13 +351,16 @@ function App() {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 4000);
       try {
-        const recUrl = activeScenario && activeScenario !== "live"
-          ? `${backendUrl}/api/irrigation/recommendation?scenario=${activeScenario}`
-          : `${backendUrl}/api/irrigation/recommendation`;
+        const scenarioParam = activeScenario && activeScenario !== "live"
+          ? `?scenario=${encodeURIComponent(activeScenario)}`
+          : "";
+        const telemUrl = `${backendUrl}/api/telemetry/latest${scenarioParam}`;
+        const predUrl = `${backendUrl}/api/prediction/soil-moisture${scenarioParam}`;
+        const recUrl = `${backendUrl}/api/irrigation/recommendation${scenarioParam}`;
 
         const [telemRes, predRes, histRes, recRes, valSumRes, valHistRes] = await Promise.allSettled([
-          fetch(`${backendUrl}/api/telemetry/latest`, { cache: "no-store", signal: controller.signal }),
-          fetch(`${backendUrl}/api/prediction/soil-moisture`, { cache: "no-store", signal: controller.signal }),
+          fetch(telemUrl, { cache: "no-store", signal: controller.signal }),
+          fetch(predUrl, { cache: "no-store", signal: controller.signal }),
           fetch(`${backendUrl}/api/telemetry/history?hours=24&limit=50`, { cache: "no-store", signal: controller.signal }),
           fetch(recUrl, { cache: "no-store", signal: controller.signal }),
           fetch(`${backendUrl}/api/ml/validation/summary`, { cache: "no-store", signal: controller.signal }),

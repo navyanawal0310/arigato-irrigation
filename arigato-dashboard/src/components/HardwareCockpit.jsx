@@ -207,22 +207,27 @@ export default function HardwareCockpit({
     ? { tone: "poor", label: "Unavailable" }
     : band(litres, [200, Infinity], ["Low", "Good", ""]);
 
-  // --- FIELD SENSORS (Strict Fault Gate) ---
+  // --- FIELD SENSORS ---
+  const isScenarioActive = Boolean(activeScenario && activeScenario !== "live");
   const rawMoisture = d?.soil?.moisture_pct ?? d?.soil?.moisture_index;
-  const moisture = (d && !soilFault && isFiniteNumber(rawMoisture) && rawMoisture >= 0)
-    ? Number(rawMoisture.toFixed(1))
+  const moisture = (d && isFiniteNumber(rawMoisture))
+    ? Number(Number(rawMoisture).toFixed(1))
     : null;
-  const moistureStatus = soilFault
-    ? { tone: "poor", label: "SENSOR FAULT" }
-    : band(moisture, [35, 75], ["Dry", "Optimal", "Wet"]);
+  const moistureStatus = isScenarioActive
+    ? band(moisture, [35, 75], ["Dry", "Optimal", "Wet"])
+    : (soilFault
+        ? { tone: "poor", label: "SENSOR FAULT" }
+        : band(moisture, [35, 75], ["Dry", "Optimal", "Wet"]));
 
   const rawDryness = d?.soil?.dryness_pct ?? d?.soil?.dryness;
-  const dryness = (d && !soilFault && isFiniteNumber(rawDryness) && rawDryness >= 0)
-    ? Number(rawDryness.toFixed(1))
-    : null;
-  const drynessStatus = soilFault
-    ? { tone: "poor", label: "SENSOR FAULT" }
-    : band(dryness, [0, 55], ["", "Normal", "Dry"]);
+  const dryness = (d && isFiniteNumber(rawDryness))
+    ? Number(Number(rawDryness).toFixed(1))
+    : (moisture != null ? Number(Math.max(0, 100 - moisture).toFixed(1)) : null);
+  const drynessStatus = isScenarioActive
+    ? band(dryness, [0, 55], ["", "Normal", "Dry"])
+    : (soilFault
+        ? { tone: "poor", label: "SENSOR FAULT" }
+        : band(dryness, [0, 55], ["", "Normal", "Dry"]));
 
   // Rain Sensor - Physical Telemetry
   let rainValue = "--";
@@ -485,10 +490,12 @@ export default function HardwareCockpit({
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
                 <span style={{ margin: 0 }}>Soil Moisture</span>
-                <span className="prov-badge prov-sensor">LIVE SENSOR</span>
+                <span className={`prov-badge ${isScenarioActive ? "prov-sim" : "prov-sensor"}`}>
+                  {isScenarioActive ? "SIMULATED" : "LIVE SENSOR"}
+                </span>
               </div>
-              <strong style={{ fontSize: soilFault ? "16px" : "19px" }}>
-                {soilFault ? "SENSOR FAULT" : (moisture != null ? `${moisture}%` : "--")}
+              <strong style={{ fontSize: "19px" }}>
+                {moisture != null ? `${moisture}%` : (soilFault ? "FAULT" : "--")}
               </strong>
               {moistureStatus?.label && <Chip tone={moistureStatus.tone}>{moistureStatus.label}</Chip>}
             </div>
@@ -500,10 +507,12 @@ export default function HardwareCockpit({
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
                 <span style={{ margin: 0 }}>Root Dryness</span>
-                <span className="prov-badge prov-sensor">LIVE SENSOR</span>
+                <span className={`prov-badge ${isScenarioActive ? "prov-sim" : "prov-sensor"}`}>
+                  {isScenarioActive ? "SIMULATED" : "LIVE SENSOR"}
+                </span>
               </div>
-              <strong style={{ fontSize: soilFault ? "16px" : "19px" }}>
-                {soilFault ? "SENSOR FAULT" : (dryness != null ? `${dryness}%` : "--")}
+              <strong style={{ fontSize: "19px" }}>
+                {dryness != null ? `${dryness}%` : (soilFault ? "FAULT" : "--")}
               </strong>
               {drynessStatus?.label && <Chip tone={drynessStatus.tone}>{drynessStatus.label}</Chip>}
             </div>

@@ -37,8 +37,16 @@ def health_check():
 
 
 @router.get("/telemetry/latest", summary="Get Newest Telemetry Record")
-def get_latest_telemetry():
-    """Returns the most recent telemetry document from MongoDB Atlas."""
+def get_latest_telemetry(
+    scenario: Optional[str] = Query(default=None, description="Optional what-if demonstration scenario ('dry_no_rain', 'dry_rain_expected', 'adequate_moisture', 'safety_lockout')"),
+):
+    """Returns the most recent telemetry document from MongoDB Atlas or demonstration scenario."""
+    if scenario and scenario.lower() not in ["live", "none", ""]:
+        from backend.app.irrigation_intelligence import recommendation_service
+        sc_doc = recommendation_service.get_scenario_telemetry(scenario)
+        if sc_doc:
+            return sc_doc
+
     coll = get_telemetry_collection()
     doc = coll.find_one(sort=[("recorded_at", DESCENDING)])
     if not doc:
@@ -122,6 +130,7 @@ async def trigger_manual_collection():
 @router.get("/prediction/soil-moisture", summary="Get 3-Hour Soil Moisture ML Prediction")
 def get_soil_moisture_prediction(
     device_id: Optional[str] = Query(default=None, description="Optional target device ID"),
+    scenario: Optional[str] = Query(default=None, description="Optional what-if demonstration scenario ('dry_no_rain', 'dry_rain_expected', 'adequate_moisture', 'safety_lockout')"),
 ):
     """
     Executes safe 3-hour forward root-zone soil moisture prediction using the trained V2 model.
@@ -131,6 +140,12 @@ def get_soil_moisture_prediction(
     - Refuses if required weather data is missing (status='missing_features', reason='MISSING_WEATHER_DATA').
     - NEVER directly commands or overrides irrigation pumps.
     """
+    if scenario and scenario.lower() not in ["live", "none", ""]:
+        from backend.app.irrigation_intelligence import recommendation_service
+        sc_pred = recommendation_service.get_scenario_prediction(scenario)
+        if sc_pred:
+            return sc_pred
+
     from backend.app.ml_inference import inference_service
     return inference_service.predict_latest_from_db(device_id=device_id)
 

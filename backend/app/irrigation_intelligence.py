@@ -585,6 +585,95 @@ class IrrigationIntelligenceService:
             },
         }
 
+    def get_scenario_telemetry(self, scenario_name: str) -> Optional[Dict[str, Any]]:
+        """Returns standard telemetry document structure for a demonstration scenario."""
+        name = scenario_name.lower().strip()
+        now_iso = datetime.now(timezone.utc).isoformat()
+        if name == "dry_no_rain":
+            return {
+                "_id": "demo_dry_no_rain",
+                "device_id": "AquaMatrix-MaxCore (Simulated Demo)",
+                "recorded_at": now_iso,
+                "source": "demo_scenario",
+                "system": {"name": "AquaMatrix-MaxCore", "firmware": "6.5.0-DEMO", "uptime_sec": 3600, "wifi_status": "CONNECTED", "anomaly": "NONE"},
+                "soil": {"status": "HEALTHY", "raw_adc": 2550, "adc_raw": 2550, "moisture_pct": 19.5, "moisture_index": 19.5, "dryness_pct": 80.5, "dryness": 80.5},
+                "reservoir": {"status": "HEALTHY", "level_pct": 78.0, "storage_litres": 390.0, "water_ml": 390000},
+                "rain_sensor": {"is_raining": False, "surface_wetness_pct": 5.0, "raw_adc": 3900},
+                "atmosphere": {"temp_c": 27.5, "humidity_pct": 45.0, "et0_fao56_mm": 5.4, "forecast_rain_next_3h_mm": 0.0, "forecast_rain_mm": 0.0},
+                "crop": {"profile_id": "TOMATO_VEG", "name": "Tomato (Vegetative)", "kc_factor": 0.85, "mad_threshold_pct": 50},
+                "quality": {"soil_valid": True, "reservoir_valid": True, "rain_sensor_valid": True, "node_connected": True},
+            }
+        elif name == "dry_rain_expected":
+            return {
+                "_id": "demo_dry_rain_expected",
+                "device_id": "AquaMatrix-MaxCore (Simulated Demo)",
+                "recorded_at": now_iso,
+                "source": "demo_scenario",
+                "system": {"name": "AquaMatrix-MaxCore", "firmware": "6.5.0-DEMO", "uptime_sec": 3600, "wifi_status": "CONNECTED", "anomaly": "NONE"},
+                "soil": {"status": "HEALTHY", "raw_adc": 2550, "adc_raw": 2550, "moisture_pct": 19.5, "moisture_index": 19.5, "dryness_pct": 80.5, "dryness": 80.5},
+                "reservoir": {"status": "HEALTHY", "level_pct": 78.0, "storage_litres": 390.0, "water_ml": 390000},
+                "rain_sensor": {"is_raining": False, "surface_wetness_pct": 5.0, "raw_adc": 3900},
+                "atmosphere": {"temp_c": 24.0, "humidity_pct": 78.0, "et0_fao56_mm": 3.8, "forecast_rain_next_3h_mm": 6.5, "forecast_rain_mm": 6.5},
+                "crop": {"profile_id": "TOMATO_VEG", "name": "Tomato (Vegetative)", "kc_factor": 0.85, "mad_threshold_pct": 50},
+                "quality": {"soil_valid": True, "reservoir_valid": True, "rain_sensor_valid": True, "node_connected": True},
+            }
+        elif name == "adequate_moisture":
+            return {
+                "_id": "demo_adequate_moisture",
+                "device_id": "AquaMatrix-MaxCore (Simulated Demo)",
+                "recorded_at": now_iso,
+                "source": "demo_scenario",
+                "system": {"name": "AquaMatrix-MaxCore", "firmware": "6.5.0-DEMO", "uptime_sec": 3600, "wifi_status": "CONNECTED", "anomaly": "NONE"},
+                "soil": {"status": "HEALTHY", "raw_adc": 1650, "adc_raw": 1650, "moisture_pct": 32.0, "moisture_index": 32.0, "dryness_pct": 68.0, "dryness": 68.0},
+                "reservoir": {"status": "HEALTHY", "level_pct": 82.0, "storage_litres": 410.0, "water_ml": 410000},
+                "rain_sensor": {"is_raining": False, "surface_wetness_pct": 10.0, "raw_adc": 3700},
+                "atmosphere": {"temp_c": 25.0, "humidity_pct": 55.0, "et0_fao56_mm": 4.5, "forecast_rain_next_3h_mm": 0.0, "forecast_rain_mm": 0.0},
+                "crop": {"profile_id": "TOMATO_VEG", "name": "Tomato (Vegetative)", "kc_factor": 0.85, "mad_threshold_pct": 50},
+                "quality": {"soil_valid": True, "reservoir_valid": True, "rain_sensor_valid": True, "node_connected": True},
+            }
+        elif name == "safety_lockout":
+            return {
+                "_id": "demo_safety_lockout",
+                "device_id": "AquaMatrix-MaxCore (Simulated Demo)",
+                "recorded_at": now_iso,
+                "source": "demo_scenario",
+                "system": {"name": "AquaMatrix-MaxCore", "firmware": "6.5.0-DEMO", "uptime_sec": 3600, "wifi_status": "CONNECTED", "anomaly": "RESERVOIR_SENSOR_FAULT"},
+                "soil": {"status": "HEALTHY", "raw_adc": 2550, "adc_raw": 2550, "moisture_pct": 19.5, "moisture_index": 19.5, "dryness_pct": 80.5, "dryness": 80.5},
+                "reservoir": {"status": "OUT_OF_RANGE", "level_pct": -1.0, "storage_litres": 0.0, "water_ml": 0},
+                "rain_sensor": {"is_raining": False, "surface_wetness_pct": 5.0, "raw_adc": 3900},
+                "atmosphere": {"temp_c": 27.5, "humidity_pct": 45.0, "et0_fao56_mm": 5.4, "forecast_rain_next_3h_mm": 0.0, "forecast_rain_mm": 0.0},
+                "crop": {"profile_id": "TOMATO_VEG", "name": "Tomato (Vegetative)", "kc_factor": 0.85, "mad_threshold_pct": 50},
+                "quality": {"soil_valid": True, "reservoir_valid": False, "rain_sensor_valid": True, "node_connected": True},
+            }
+        return None
+
+    def get_scenario_prediction(self, scenario_name: str) -> Optional[Dict[str, Any]]:
+        """Returns standard ML prediction structure for a demonstration scenario."""
+        name = scenario_name.lower().strip()
+        rec = self._evaluate_scenario(name)
+        ml_info = rec.get("ml", {})
+        if ml_info.get("used"):
+            pred_val = float(ml_info.get("predicted_soil_moisture_pct", 0.0))
+            return {
+                "status": "ok",
+                "device_id": f"AquaMatrix-MaxCore (Demo {name})",
+                "prediction_horizon_hours": ml_info.get("horizon_hours", 3),
+                "current_soil_moisture_pct": ml_info.get("current_soil_moisture_pct"),
+                "predicted_soil_moisture_pct": pred_val,
+                "change_pct_points": ml_info.get("change_pct_points"),
+                "model_version": ml_info.get("model", "Soil-Water V2"),
+                "confidence_interval_95": [
+                    round(pred_val - 1.88, 2),
+                    round(pred_val + 1.88, 2),
+                ],
+                "scenario": name,
+                "audit": {
+                    "scenario": name,
+                    "simulated": True,
+                },
+            }
+        return None
+
 
 # Singleton service instance
 recommendation_service = IrrigationIntelligenceService()
