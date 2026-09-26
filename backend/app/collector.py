@@ -22,6 +22,7 @@ from backend.app.config import (
     ESP32_BASE_URL,
     TELEMETRY_INTERVAL_SECONDS,
 )
+from backend.app.api_weather import api_weather, merge_api_weather
 from backend.app.database import get_telemetry_collection
 from backend.app.telemetry_mapper import map_esp32_telemetry
 
@@ -105,6 +106,12 @@ class TelemetryCollector:
         # Map document
         doc = map_esp32_telemetry(raw_data, source="esp32")
 
+        # Combine hardware readings with API weather (never blocks storage)
+        try:
+            merge_api_weather(doc, await api_weather.get_snapshot())
+        except Exception as we:
+            logger.warning(f"[COLLECTOR] API weather merge skipped: {we}")
+
         # Insert into MongoDB
         try:
             coll = get_telemetry_collection()
@@ -187,6 +194,7 @@ class TelemetryCollector:
             "last_error": self.last_error,
             "records_inserted_count": self.records_inserted_count,
             "consecutive_errors": self.consecutive_errors,
+            "api_weather": api_weather.get_status(),
         }
 
 

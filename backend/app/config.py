@@ -27,6 +27,12 @@ TELEMETRY_INTERVAL_SECONDS = int(os.getenv("TELEMETRY_INTERVAL_SECONDS", "30"))
 HOST = os.getenv("HOST", "0.0.0.0")
 PORT = int(os.getenv("PORT", "8000"))
 
+# Software (API) weather merged into each hardware telemetry record
+ACCUWEATHER_API_KEY = os.getenv("ACCUWEATHER_API_KEY", "")
+FIELD_LATITUDE = float(os.getenv("FIELD_LATITUDE", "12.9716"))    # defaults match the ESP32 firmware
+FIELD_LONGITUDE = float(os.getenv("FIELD_LONGITUDE", "77.5946"))
+API_WEATHER_REFRESH_MINUTES = int(os.getenv("API_WEATHER_REFRESH_MINUTES", "60"))
+
 
 def get_safe_mongodb_summary() -> str:
     """Returns a sanitized summary of the MongoDB configuration without exposing credentials."""

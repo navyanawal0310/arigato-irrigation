@@ -140,3 +140,18 @@ Exposes the trained V2 model (`Direct_ExtraTrees`, 36 features) for 3-hour root-
 5. **Strict Pump Isolation**:
    - Prediction is informational only. ML never directly triggers, commands, or overrides pump hardware or `LOCKOUT_TANK_FAULT`.
 
+
+---
+
+## 8. Hardware + API Weather Merge (`app/api_weather.py`)
+
+Each telemetry record combines the ESP32 reading with an AccuWeather snapshot for the field:
+
+- `api_weather` — the snapshot (current conditions, rain in the last 3 h, rain forecast for the next 3 h / 12 h), cached for `API_WEATHER_REFRESH_MINUTES` (default 60) to protect the AccuWeather quota.
+- Missing `atmosphere` features are filled from the snapshot — mainly `forecast_rain_next_3h_mm`, which the firmware only approximates with a whole-day total. **Hardware values are never overwritten** (a real `0.0` stays `0.0`).
+- `atmosphere_sources` records every filled field (e.g. `{"forecast_rain_next_3h_mm": "accuweather"}`) and `quality.api_weather_merged` flags enrichment.
+- If AccuWeather is unreachable the record is stored unenriched — collection never blocks on the API.
+
+Configure in `backend/.env`: `ACCUWEATHER_API_KEY`, `FIELD_LATITUDE`, `FIELD_LONGITUDE` (defaults match the firmware). Status appears under `api_weather` in `/api/telemetry/collector/status`.
+
+User accounts, farm profiles and activity are **not** stored here — they live in Supabase (see `arigato-dashboard/supabase/schema.sql`).

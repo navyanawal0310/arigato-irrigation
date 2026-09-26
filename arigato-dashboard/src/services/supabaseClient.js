@@ -38,3 +38,49 @@ export async function saveProfile(userId, farmerInput, compareList, fullName) {
 
 // PostgREST error code when the table hasn't been created yet
 export const isMissingTable = (error) => error?.code === "PGRST205" || error?.code === "42P01";
+
+/* ---------------------------------------------------------------- activity log */
+
+// Events are queued and written in small batches; only signed-in farmers are logged
+let activityUserId = null;
+let activityQueue = [];
+let flushTimer = null;
+
+export function setActivityUser(userId) {
+  activityUserId = userId;
+  if (!userId) activityQueue = [];
+}
+
+export async function flushActivity() {
+  clearTimeout(flushTimer);
+  if (!supabase || !activityQueue.length) return;
+  const batch = activityQueue;
+  activityQueue = [];
+  const { error } = await supabase.from("user_activity").insert(batch);
+  if (error && !isMissingTable(error)) console.warn("Activity log failed:", error.message);
+}
+
+export function logActivity(event, details = {}) {
+  if (!supabase || !activityUserId) return;
+  activityQueue.push({ user_id: activityUserId, event, details });
+  clearTimeout(flushTimer);
+  flushTimer = setTimeout(flushActivity, 2000);
+}
+
+export async function loadRecentActivity(userId, limit = 6) {
+  const { data, error } = await supabase
+    .from("user_activity")
+    .select("event, details, created_at")
+    .eq("user_id", userId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return data;
+}
+
+export async function signOut() {
+  logActivity("signed_out");
+  await flushActivity();
+  setActivityUser(null);
+  await supabase.auth.signOut();
+}

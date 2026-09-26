@@ -1,8 +1,8 @@
-import { Check, Clock, Droplets, IndianRupee, Plus, Sprout, Store, Sun, Mountain } from "lucide-react";
+import { CalendarDays, Check, Clock, Droplets, IndianRupee, Loader2, Plus, Sparkles, Sprout, Store, Sun, Mountain } from "lucide-react";
 import { CropImage, PageHeader } from "./ui";
 import { scoreTone } from "../utils/format";
 
-export default function CropRecommendations({ recommendations, localityData, farmerInput, onSelectCrop, onToggleCompare, compareList }) {
+export default function CropRecommendations({ recommendations, localityData, aiInsights, soilStatus, farmerInput, onSelectCrop, onToggleCompare, compareList }) {
   const top = recommendations[0];
   const factors = [
     { icon: <Sun size={20} />, title: "Climate Match", text: `${localityData?.temp ?? "--"}°C · ${localityData?.humidity ?? "--"}% humidity` },
@@ -16,7 +16,11 @@ export default function CropRecommendations({ recommendations, localityData, far
       <PageHeader
         title="Recommended Crops"
         subtitle="Best suited minor crops for your location and land conditions"
-        right={<span className="pill-badge">Based on locality data</span>}
+        right={
+          <span className="pill-badge">
+            {aiInsights ? <><Sparkles size={12} /> Locality data + Gemini AI</> : soilStatus === "loading" ? <><Loader2 size={12} className="spin" /> Gemini refining scores…</> : "Based on locality data"}
+          </span>
+        }
       />
 
       <div className="crop-grid">
@@ -65,6 +69,26 @@ export default function CropRecommendations({ recommendations, localityData, far
           ))}
         </div>
       </div>
+
+      {aiInsights?.extraMicrocrops?.length > 0 && (
+        <div className="card">
+          <h3 className="card-title"><Sparkles size={16} className="text-green" /> More micro-crops for {localityData?.shortName ?? "your area"}</h3>
+          <p className="card-sub">Suggested by Gemini AI for this location and season — not yet in the revenue model</p>
+          <div className="idea-grid">
+            {aiInsights.extraMicrocrops.map((idea) => (
+              <div key={idea.name} className="idea-card">
+                <strong>{idea.name}</strong>
+                <p>{idea.why}</p>
+                <div className="idea-meta">
+                  <span><CalendarDays size={12} /> {idea.season}</span>
+                  <span><Clock size={12} /> {idea.duration}</span>
+                  <span><Droplets size={12} /> {idea.waterNeed} water</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {top && (
         <div className="card tip-card">

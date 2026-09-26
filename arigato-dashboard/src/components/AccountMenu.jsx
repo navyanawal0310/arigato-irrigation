@@ -1,6 +1,6 @@
-import { useState } from "react";
-import { CloudOff, Loader2, LogOut, UserRound, Sparkles, CheckCircle2, ArrowRight } from "lucide-react";
-import { supabase } from "../services/supabaseClient";
+import { useEffect, useState } from "react";
+import { CloudOff, Loader2, LogOut, UserRound, Sparkles, CheckCircle2, ArrowRight, History } from "lucide-react";
+import { isMissingTable, loadRecentActivity, signOut, supabase } from "../services/supabaseClient";
 
 const SYNC_TEXT = {
   idle: "Profile synced to cloud",
@@ -9,6 +9,59 @@ const SYNC_TEXT = {
   error: "Couldn’t save — will retry",
   "no-table": "Cloud table missing",
 };
+
+const EVENT_LABELS = {
+  signed_in: () => "Signed in",
+  signed_out: () => "Signed out",
+  profile_saved: (d) => `Saved farm profile${d.location ? ` · ${d.location}` : ""}`,
+  location_changed: (d) => `Changed location to ${d.name ?? "a new place"}`,
+  page_view: (d) => `Opened ${d.page}`,
+  crop_viewed: (d) => `Viewed ${d.crop} guidance`,
+  compare_changed: (d) => `${d.action === "added" ? "Added" : "Removed"} ${d.crop} ${d.action === "added" ? "to" : "from"} comparison`,
+  soil_analysis: (d) => `AI soil analysis for ${d.place} · ${d.soilType}`,
+  mode_changed: (d) => `Switched to ${d.mode === "personalized" ? "field sensor" : "locality API"} mode`,
+};
+
+function timeAgo(iso, now) {
+  const mins = Math.round((now - new Date(iso).getTime()) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.round(mins / 60);
+  return hours < 24 ? `${hours} h ago` : `${Math.round(hours / 24)} d ago`;
+}
+
+function RecentActivity({ userId }) {
+  const [state, setState] = useState({ status: "loading", items: [] });
+
+  useEffect(() => {
+    let cancelled = false;
+    loadRecentActivity(userId)
+      .then((items) => {
+        const now = Date.now();
+        if (!cancelled) setState({ status: "ready", items: items.map((a) => ({ ...a, ago: timeAgo(a.created_at, now) })) });
+      })
+      .catch((err) => !cancelled && setState({ status: isMissingTable(err) ? "no-table" : "error", items: [] }));
+    return () => {
+      cancelled = true;
+    };
+  }, [userId]);
+
+  return (
+    <div className="account-activity">
+      <span className="account-activity-title"><History size={13} /> Recent activity</span>
+      {state.status === "loading" && <span className="account-activity-empty">Loading…</span>}
+      {state.status === "no-table" && <span className="account-activity-empty">Activity table missing — run supabase/schema.sql</span>}
+      {state.status === "error" && <span className="account-activity-empty">Couldn’t load activity</span>}
+      {state.status === "ready" && state.items.length === 0 && <span className="account-activity-empty">No activity yet</span>}
+      {state.items.map((a) => (
+        <div key={`${a.created_at}-${a.event}`} className="account-activity-item">
+          <span>{(EVENT_LABELS[a.event] ?? (() => a.event))(a.details ?? {})}</span>
+          <small>{a.ago}</small>
+        </div>
+      ))}
+    </div>
+  );
+}
 
 export default function AccountMenu({ session, syncStatus, onGoToProfile, onEnterDashboard, isGateway = false }) {
   const [mode, setMode] = useState("signin");
@@ -62,12 +115,14 @@ export default function AccountMenu({ session, syncStatus, onGoToProfile, onEnte
           </button>
         )}
 
+        <RecentActivity userId={user.id} />
+
         <div className="account-menu-actions">
           <button type="button" className="account-action-btn edit-profile-btn" onClick={onGoToProfile}>
             <UserRound size={15} />
             <span>Farm Profile & Land</span>
           </button>
-          <button type="button" className="account-action-btn signout-btn" onClick={() => supabase.auth.signOut()}>
+          <button type="button" className="account-action-btn signout-btn" onClick={signOut}>
             <LogOut size={15} />
             <span>Sign out</span>
           </button>

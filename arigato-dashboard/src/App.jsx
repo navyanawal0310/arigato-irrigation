@@ -25,7 +25,7 @@ import "./App.css";
 import { fetchLocalityWeather, LOCATION_PRESETS, presetLocation } from "./services/weatherService";
 import { evaluateSuitability } from "./services/recommendationEngine";
 import { getIpLocation, getSoilInsights, searchPlaces } from "./services/api";
-import { isMissingTable, loadProfile, saveProfile, supabase } from "./services/supabaseClient";
+import { isMissingTable, loadProfile, logActivity, saveProfile, setActivityUser, supabase } from "./services/supabaseClient";
 import AccountMenu from "./components/AccountMenu";
 import HomePage from "./components/HomePage";
 import FarmerProfile from "./components/FarmerProfile";
@@ -167,7 +167,11 @@ function App() {
     document.documentElement.style.colorScheme = darkMode ? "dark" : "light";
   }, [darkMode]);
 
-  const setLocation = (location) => setFarmerInput((f) => ({ ...f, location }));
+  // User-chosen location (search, preset, IP detect) — logged to the farmer's activity
+  const setLocation = (location) => {
+    setFarmerInput((f) => ({ ...f, location }));
+    logActivity("location_changed", { name: location.name ?? "GPS location", state: location.state, source: location.source });
+  };
 
   // First visit: locate the farmer by IP (unless they've already picked a place)
   useEffect(() => {
@@ -214,7 +218,11 @@ function App() {
     let cancelled = false;
     const { lat, lon, shortName, district, state, country, temp, humidity, rainfall } = localityData;
     getSoilInsights({ lat, lon, name: shortName, district, state, country, temp, humidity, rainfall })
-      .then((data) => !cancelled && setSoilByKey((m) => ({ ...m, [soilKey]: { status: "ready", data } })))
+      .then((data) => {
+        if (cancelled) return;
+        setSoilByKey((m) => ({ ...m, [soilKey]: { status: "ready", data } }));
+        logActivity("soil_analysis", { place: shortName, soilType: data.soilType, model: data.model });
+      })
       .catch((err) => !cancelled && setSoilByKey((m) => ({ ...m, [soilKey]: { status: "error", error: err.message } })));
     return () => {
       cancelled = true;
@@ -249,8 +257,16 @@ function App() {
   // Supabase auth session
   useEffect(() => {
     if (!supabase) return;
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data } = supabase.auth.onAuthStateChange((_event, next) => setSession(next));
+    let lastUserId = null;
+    const applySession = (event, next) => {
+      const nextId = next?.user?.id ?? null;
+      setActivityUser(nextId);
+      if (event === "SIGNED_IN" && nextId && nextId !== lastUserId) logActivity("signed_in", { email: next.user.email });
+      lastUserId = nextId;
+      setSession(next);
+    };
+    supabase.auth.getSession().then(({ data }) => applySession("INITIAL_SESSION", data.session));
+    const { data } = supabase.auth.onAuthStateChange(applySession);
     return () => data.subscription.unsubscribe();
   }, []);
 
@@ -437,10 +453,25 @@ function App() {
     aiInsights,
   });
 
-  const toggleCompare = (cropId) =>
+  const toggleCompare = (cropId) => {
+    const removing = compareList.includes(cropId);
     setCompareList((prev) => (prev.includes(cropId) ? prev.filter((id) => id !== cropId) : [...prev, cropId]));
+    const crop = engine.recommendations.find((c) => c.id === cropId);
+    logActivity("compare_changed", { crop: crop?.shortName ?? cropId, action: removing ? "removed" : "added" });
+  };
+
+  const openCrop = (crop) => {
+    setSelectedCrop(crop);
+    logActivity("crop_viewed", { crop: crop.shortName, score: crop.suitabilityScore });
+  };
+
+  const changeMode = (mode) => {
+    setActiveMode(mode);
+    if (mode !== activeMode) logActivity("mode_changed", { mode });
+  };
 
   const navigate = (id) => {
+    if (id !== activeTab) logActivity("page_view", { page: TRANSLATIONS.en[id] ?? id });
     setActiveTab(id);
     setNavOpen(false);
     setOpenMenu(null);
@@ -456,7 +487,7 @@ function App() {
       .map((i) => ({ key: i.id, label: t[i.id], kind: "Page", action: () => navigate(i.id) }));
     const crops = engine.recommendations
       .filter((c) => `${c.name} ${c.kannadaName} ${c.category}`.toLowerCase().includes(q))
-      .map((c) => ({ key: c.id, label: `${c.icon} ${c.shortName}`, kind: `${c.suitabilityScore}% suitable`, action: () => { setSelectedCrop(c); setOpenMenu(null); } }));
+      .map((c) => ({ key: c.id, label: `${c.icon} ${c.shortName}`, kind: `${c.suitabilityScore}% suitable`, action: () => { openCrop(c); setOpenMenu(null); } }));
     const places = LOCATION_PRESETS.filter((p) => `${p.name} ${p.state}`.toLowerCase().includes(q)).map((p) => ({
       key: p.id,
       label: `${p.name}, ${p.state}`,
@@ -486,10 +517,10 @@ function App() {
   const pages = {
     overview: (
       <HomePage
-        localityData={localityData}
+        localityData={locality}
         engine={engine}
         activeMode={activeMode}
-        onModeChange={setActiveMode}
+        onModeChange={changeMode}
         deviceConnected={deviceConnected}
         onNavigate={navigate}
       />
@@ -500,11 +531,25 @@ function App() {
         farmerInput={farmerInput}
         onSave={(draft) => {
           setFarmerInput(draft);
+          logActivity("profile_saved", {
+            location: draft.location?.name ?? "GPS location",
+            plot: `${draft.plotSize} ${draft.plotUnit}`,
+            crop: draft.primaryCrop,
+            irrigation: draft.irrigation,
+          });
           navigate("locality");
         }}
       />
     ),
-    locality: <LocalityIntelligence localityData={localityData} onRefresh={loadWeather} isRefreshing={isRefreshingWeather} />,
+    locality: (
+      <LocalityIntelligence
+        localityData={locality}
+        soil={soil}
+        onRetrySoil={retrySoil}
+        onRefresh={loadWeather}
+        isRefreshing={isRefreshingWeather}
+      />
+    ),
     revenue: (
       <AdditionalRevenue
         engine={engine}
@@ -516,9 +561,11 @@ function App() {
     recommendations: (
       <CropRecommendations
         recommendations={engine.recommendations}
-        localityData={localityData}
+        localityData={locality}
+        aiInsights={aiInsights}
+        soilStatus={soil.status}
         farmerInput={farmerInput}
-        onSelectCrop={setSelectedCrop}
+        onSelectCrop={openCrop}
         onToggleCompare={toggleCompare}
         compareList={compareList}
       />
@@ -528,7 +575,7 @@ function App() {
         recommendations={engine.recommendations}
         compareList={compareList}
         onToggleCompare={toggleCompare}
-        onSelectCrop={setSelectedCrop}
+        onSelectCrop={openCrop}
       />
     ),
     cockpit: (
@@ -547,7 +594,7 @@ function App() {
         apiError={apiError}
         lastUpdated={lastUpdated}
         activeMode={activeMode}
-        onModeChange={setActiveMode}
+        onModeChange={changeMode}
         activeScenario={activeScenario}
         onScenarioChange={setActiveScenario}
       />

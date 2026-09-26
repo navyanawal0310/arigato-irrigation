@@ -1,4 +1,4 @@
--- KRISHI SETU — farmer profile storage
+-- KRISHI SETU — Supabase schema: farmer accounts, profiles and activity
 -- Run once in Supabase Dashboard → SQL Editor for project vcuaftykxkpingyvaktl.
 
 create table if not exists public.farmer_profiles (
@@ -34,3 +34,30 @@ create policy "Farmers update own profile"
   to authenticated
   using ((select auth.uid()) = id)
   with check ((select auth.uid()) = id);
+
+-- ---------------------------------------------------------------------------
+-- Farmer activity log — what each signed-in farmer did in the dashboard
+-- (hardware sensor data lives in MongoDB, not here)
+-- ---------------------------------------------------------------------------
+create table if not exists public.user_activity (
+  id          bigint generated always as identity primary key,
+  user_id     uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  event       text not null check (char_length(event) <= 64),
+  details     jsonb not null default '{}'::jsonb,
+  created_at  timestamptz not null default now()
+);
+
+create index if not exists user_activity_user_time_idx
+  on public.user_activity (user_id, created_at desc);
+
+alter table public.user_activity enable row level security;
+
+create policy "Farmers read own activity"
+  on public.user_activity for select
+  to authenticated
+  using ((select auth.uid()) = user_id);
+
+create policy "Farmers log own activity"
+  on public.user_activity for insert
+  to authenticated
+  with check ((select auth.uid()) = user_id);

@@ -1,7 +1,25 @@
-import { Droplets, Layers, Leaf, RefreshCw, Sprout, Thermometer, Wind } from "lucide-react";
-import { PageHeader, WeatherIcon } from "./ui";
+import { Droplets, Layers, Leaf, Loader2, RefreshCw, Sparkles, Sprout, Thermometer, Wind } from "lucide-react";
+import { Chip, PageHeader, WeatherIcon } from "./ui";
 
-export default function LocalityIntelligence({ localityData, onRefresh, isRefreshing }) {
+function SoilStatus({ soil, onRetry, reference }) {
+  if (soil.status === "loading") {
+    return <Chip tone="info"><Loader2 size={11} className="spin" /> Gemini analysing soil…</Chip>;
+  }
+  if (soil.status === "ready") {
+    return <Chip tone="good"><Sparkles size={11} /> Gemini AI · {soil.data.confidence} confidence</Chip>;
+  }
+  if (soil.status === "error") {
+    return (
+      <span className="soil-status-row">
+        <Chip tone="fair">Regional estimate ({reference})</Chip>
+        <button className="link-btn" onClick={onRetry}>Retry AI analysis</button>
+      </span>
+    );
+  }
+  return null;
+}
+
+export default function LocalityIntelligence({ localityData, soil = { status: "idle" }, onRetrySoil, onRefresh, isRefreshing }) {
   if (!localityData) {
     return (
       <div className="page">
@@ -52,11 +70,17 @@ export default function LocalityIntelligence({ localityData, onRefresh, isRefres
 
       <div className="soil-grid">
         <div className="card">
-          <h3 className="card-title"><span className="title-dot" />Soil Information</h3>
+          <h3 className="card-title card-title-split">
+            <span><span className="title-dot" />Soil Information</span>
+            <SoilStatus soil={soil} onRetry={onRetrySoil} reference={localityData.soilReference} />
+          </h3>
           <div className="soil-facts">
             <div className="soil-fact">
               <span className="soil-swatch"><Layers size={18} /></span>
-              <div><strong>{localityData.soilType.replace(" Soil", "")}</strong><span>Soil Type</span></div>
+              <div>
+                <strong>{localityData.soilType.replace(" Soil", "")}</strong>
+                <span>{localityData.soilTexture ? `Soil Type · ${localityData.soilTexture}` : "Soil Type"}</span>
+              </div>
             </div>
             <div className="soil-fact">
               <div><strong>{localityData.soilPh}</strong><span>pH Range</span></div>
@@ -68,6 +92,7 @@ export default function LocalityIntelligence({ localityData, onRefresh, isRefres
               <div><strong>{localityData.drainage}</strong><span>Drainage</span></div>
             </div>
           </div>
+          {localityData.soilNote && <p className="soil-note">{localityData.soilNote}</p>}
         </div>
 
         <div className="card">
@@ -80,7 +105,7 @@ export default function LocalityIntelligence({ localityData, onRefresh, isRefres
       </div>
 
       <div className="card">
-        <h3 className="card-title">7-Day Weather Forecast</h3>
+        <h3 className="card-title">{localityData.forecast.length}-Day Weather Forecast</h3>
         <div className="forecast-row">
           {localityData.forecast.map((d) => (
             <div key={d.date} className={`forecast-day ${d.label === "Today" ? "today" : ""}`}>
@@ -98,6 +123,7 @@ export default function LocalityIntelligence({ localityData, onRefresh, isRefres
       <div className="card tip-card">
         <Sprout size={20} className="text-green" />
         <p>
+          {localityData.headline ? `${localityData.headline}. ` : ""}
           {localityData.forecast.slice(0, 3).some((d) => d.rain >= 5)
             ? "Rain is expected in the next 3 days — hold irrigation and check field drainage for raised beds."
             : "Dry spell ahead for the next 3 days — plan drip irrigation early morning to reduce evaporation."}
